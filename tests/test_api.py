@@ -7,6 +7,7 @@ from fastapi import Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient
 
+from reason_code import api as api_module
 from reason_code.api import app, get_decision_service, request_validation_exception_handler
 from reason_code.decision import DecisionService
 from reason_code.schemas import Attribution, AttributionDirection, ScoreResult
@@ -36,6 +37,31 @@ def valid_payload() -> dict[str, object]:
         "debt_to_income_ratio": 25,
         "credit_score": 720,
     }
+
+
+def test_local_demo_page_is_self_contained_and_labels_its_limits() -> None:
+    response = TestClient(app).get("/")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert "Decision-support demo only." in response.text
+    assert "No HMDA dataset is loaded or represented here." in response.text
+    assert "Not computed by <code>/decisions</code>" in response.text
+    assert '<script src=' not in response.text
+    assert '<link href=' not in response.text
+    assert "@import" not in response.text
+    assert "fetch('/decisions'" in response.text
+
+
+def test_local_demo_returns_json_error_when_ui_asset_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(api_module, "_UI_PATH", api_module._UI_PATH.with_name("missing.html"))
+
+    response = TestClient(app, raise_server_exceptions=False).get("/")
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Local demo UI asset is unavailable."}
 
 
 def test_post_decisions_uses_injected_service() -> None:

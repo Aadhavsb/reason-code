@@ -29,6 +29,20 @@ Reason Code treats the explanation as an **evidence-bound output**, not free-for
 - Deterministic checks reject unsupported factors, statements, subjects, and numbers.
 - A separate LLM judge can assess clarity or flag issues, but it is never the authority on whether an output is evidence-faithful.
 
+## Local walkthrough UI
+
+The FastAPI app serves a self-contained, keyboard-accessible case-file UI at `/`. It is deliberately separate from the CLI and evaluation utilities:
+
+```bash
+uvicorn reason_code.main:app --reload --port 8000
+```
+
+Then open <http://127.0.0.1:8000>. The UI submits only to the local `POST /decisions` route and shows application-shaped inputs, the decision or human-review result, risk score, score source, policy version, and returned attributions.
+
+### UI boundary
+
+The walkthrough does **not** load or represent an HMDA dataset, call an LLM, or make external requests. Its bundled scorer is a deterministic demo heuristic, not a calibrated model. The current decision endpoint also does not return real reason-code mappings, a generated explanation, a closed explanation-evidence set, or a faithfulness verdict; the UI calls these omissions out rather than inventing them.
+
 ## Current implementation
 
 The repository intentionally distinguishes working engineering boundaries from data/model claims that require real evidence.
@@ -187,12 +201,6 @@ test > validation_end
 ```
 
 It prevents an obvious form of temporal leakage when real dated records exist. It does not, by itself, prove a modeling choice is valid.
-
-## Local UI
-
-A local browser demo UI is being added as the portfolio walkthrough surface. It will remain local-only, visibly demo-only, and backed by the existing FastAPI endpoint—no provider key input, remote fetch, fictional applicant data, or invented metric cards.
-
-Until that implementation is merged, use the API walkthrough above as the executable product demo and the test/evaluation commands as the reproducibility proof.
 
 ## Repository map
 
