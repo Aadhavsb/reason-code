@@ -1,6 +1,7 @@
 import json
 import subprocess
 import sys
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -72,6 +73,9 @@ def test_manifest_requires_canonical_download_date(manifest, value):
         ("https://example.gov/hmda.csv#token", "embed tokens"),
         ("https://example.gov/a file.csv", "whitespace or control"),
         ("https://example.gov/hmda%0Acsv", "whitespace or control"),
+        ("https://example.gov/hmda%2520csv", "whitespace or control"),
+        ("https://example.gov/hmda%250Acsv", "whitespace or control"),
+        ("https://example.gov/hmda.csv;version=1", "path parameters"),
     ],
 )
 def test_manifest_rejects_unsafe_source_urls(manifest, url, message):
@@ -92,6 +96,44 @@ def test_manifest_requires_filter_object(manifest):
     manifest["filter"] = "activity_year=2025"
 
     with pytest.raises(ManifestValidationError, match="filter must be a JSON object"):
+        validate_manifest(manifest)
+
+
+@pytest.mark.parametrize(
+    "filter_value",
+    [
+        {"nested": {"": "value"}},
+        {"nested": {1: "value"}},
+        {"unsupported": object()},
+        {"not_a_number": float("nan")},
+    ],
+)
+def test_manifest_rejects_non_json_or_invalid_nested_filter_values(manifest, filter_value):
+    manifest["filter"] = filter_value
+
+    with pytest.raises(ManifestValidationError, match="filter"):
+        validate_manifest(manifest)
+
+
+def test_manifest_normalizes_nested_filter_mappings_and_sequences(manifest):
+    manifest["filter"] = {"nested": {"years": (2024, 2025)}}
+
+    validated = validate_manifest(manifest)
+
+    assert validated["filter"] == {"nested": {"years": [2024, 2025]}}
+
+
+@pytest.mark.parametrize(
+    "aware_datetime",
+    [
+        datetime(2026, 11, 23, 12, tzinfo=UTC),
+        datetime(2026, 11, 23, 7, tzinfo=timezone(timedelta(hours=-5))),
+    ],
+)
+def test_manifest_rejects_equivalent_aware_datetimes_in_filters(manifest, aware_datetime):
+    manifest["filter"] = {"observed_at": aware_datetime}
+
+    with pytest.raises(ManifestValidationError, match="JSON-serializable"):
         validate_manifest(manifest)
 
 

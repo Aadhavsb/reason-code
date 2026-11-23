@@ -31,6 +31,7 @@ REQUIRED_FIELDS = frozenset(
     }
 )
 _ISO_DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}\Z")
+_MAX_URL_DECODE_PASSES = 4
 
 
 class ManifestValidationError(ValueError):
@@ -50,8 +51,19 @@ def _has_whitespace_or_control(value: str) -> bool:
     )
 
 
+def _decode_url_until_stable(value: str) -> str:
+    """Decode URL escapes to a bounded fixed point for safety checks."""
+    decoded = value
+    for _ in range(_MAX_URL_DECODE_PASSES):
+        next_decoded = unquote(decoded)
+        if next_decoded == decoded:
+            return decoded
+        decoded = next_decoded
+    raise ManifestValidationError("source_url contains excessive nested percent-encoding")
+
+
 def _validate_url(value: str) -> None:
-    decoded = unquote(value)
+    decoded = _decode_url_until_stable(value)
     if _has_whitespace_or_control(value) or _has_whitespace_or_control(decoded):
         raise ManifestValidationError(
             "source_url must not contain whitespace or control characters"
@@ -68,6 +80,8 @@ def _validate_url(value: str) -> None:
         raise ManifestValidationError("source_url must be an absolute HTTP(S) URL")
     if parsed.username is not None or parsed.password is not None:
         raise ManifestValidationError("source_url must not include embedded credentials")
+    if parsed.params:
+        raise ManifestValidationError("source_url must not include path parameters")
     if parsed.query or parsed.fragment:
         raise ManifestValidationError(
             "source_url must not include query parameters or fragments "
@@ -95,12 +109,47 @@ def _validate_hash(value: str) -> str:
     return normalized
 
 
+def _normalize_filter_value(value: Any) -> Any:
+    """Copy mappings and sequences while enforcing JSON-object key constraints."""
+    if isinstance(value, Mapping):
+        normalized: dict[str, Any] = {}
+        for key, item in value.items():
+            if not isinstance(key, str) or not key:
+                raise ManifestValidationError("filter mapping keys must be non-empty strings")
+            normalized[key] = _normalize_filter_value(item)
+        return normalized
+    if isinstance(value, (list, tuple)):
+        return [_normalize_filter_value(item) for item in value]
+    return value
+
+
+def _validate_filters(filters: Mapping[str, Any]) -> dict[str, Any]:
+    """Return a JSON-safe filter object with canonical mapping and sequence types.
+
+    Filters deliberately accept JSON values only: date and datetime objects, including
+    timezone-aware datetimes, are rejected rather than normalized. Callers must supply
+    an explicit JSON string, which prevents equivalent instants from acquiring distinct
+    manifest hashes through timezone formatting.
+    """
+    try:
+        normalized = _normalize_filter_value(filters)
+        json.dumps(normalized, allow_nan=False)
+    except (RecursionError, TypeError, ValueError) as exc:
+        raise ManifestValidationError(
+            "filter must contain only JSON-serializable values"
+        ) from exc
+    return normalized
+
+
 def validate_manifest(manifest: Mapping[str, Any]) -> dict[str, Any]:
     """Validate a local HMDA provenance manifest and return normalized metadata.
 
-    Unknown top-level fields are forbidden. A passing result says only that supplied
-    metadata is complete and well-formed, not that its source was downloaded,
-    verified, representative, or suitable for lending use.
+    Unknown top-level fields are forbidden. Filters are recursively normalized to
+    JSON-compatible mappings and sequences; timezone-aware datetimes are rejected
+    rather than normalized, so equivalent instants cannot receive different hashes.
+    A passing result says only that supplied metadata is complete and well-formed,
+    not that its source was downloaded, verified, representative, or suitable for
+    lending use.
     """
     if not isinstance(manifest, Mapping):
         raise ManifestValidationError("manifest must be a JSON object")
@@ -146,7 +195,7 @@ def validate_manifest(manifest: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "schema_version": MANIFEST_SCHEMA_VERSION,
         "source_url": source_url,
-        "filter": dict(filters),
+        "filter": _validate_filters(filters),
         "download_date": download_date,
         "fields": normalized_fields,
         "source_version_hash": _validate_hash(_require_string(manifest, "source_version_hash")),
