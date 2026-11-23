@@ -1,0 +1,53 @@
+{
+  "fixture_version": "synthetic-scaffold-v1",
+  "status": "SYNTHETIC SCAFFOLD — not reported gold-set results",
+  "description": "Small frozen hand-reviewed-style examples for deterministic regression tests only. These are invented records, not evaluation results or lending guidance.",
+  "cases": [
+    {
+      "case_id": "synthetic-faithful-001",
+      "evidence": {
+        "case_id": "synthetic-faithful-001",
+        "items": [
+          {
+            "evidence_id": "decision",
+            "kind": "decision",
+            "label": "Application requires human review"
+          },
+          {
+            "evidence_id": "debt_to_income",
+            "kind": "factor",
+            "label": "Debt-to-income ratio",
+            "value": "43%"
+          },
+          {
+            "evidence_id": "reason_dti",
+            "kind": "reason_code",
+            "label": "Debt-to-income reason code"
+          }
+        ]
+      },
+      "expected_faithful": true
+    },
+    {
+      "case_id": "synthetic-unfaithful-001",
+      "evidence": {
+        "case_id": "synthetic-unfaithful-001",
+        "items": [
+          {
+            "evidence_id": "debt_to_income",
+            "kind": "factor",
+            "label": "Debt-to-income ratio",
+            "value": "43%"
+          }
+        ]
+      },
+      "unfaithful_claim": {
+        "evidence_id": "debt_to_income",
+        "kind": "factor",
+        "subject": "Employment history",
+        "statement": "Employment history: 42%."
+      },
+      "expected_reason_codes": ["unsupported_subject", "unsupported_statement", "unsupported_number"]
+    }
+  ]
+}
