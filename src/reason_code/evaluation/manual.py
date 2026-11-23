@@ -12,7 +12,12 @@ from collections.abc import Callable, Mapping
 from typing import Any
 from urllib.request import Request, urlopen
 
-from reason_code.explanations import ExplanationEvidence, GeneratedExplanation, grade_faithfulness
+from reason_code.explanations import (
+    ExplanationEvidence,
+    GeneratedExplanation,
+    grade_faithfulness,
+    grade_prose_evidence,
+)
 
 from .config import JudgeMode, JudgeProvider, JudgeSettings
 from .digest import evidence_digest
@@ -117,10 +122,11 @@ class ManualExplanationGenerator:
             explanation = GeneratedExplanation.model_validate(self._client.complete_json(prompt))
         except (ValueError, TypeError) as exc:
             raise LlmOutputRejectedError("manual LLM explanation failed typed validation") from exc
-        verdict = grade_faithfulness(explanation, evidence)
-        if not verdict.faithful:
+        prose_verdict = grade_prose_evidence(explanation, evidence)
+        structural_verdict = grade_faithfulness(explanation, evidence)
+        if not prose_verdict.faithful or not structural_verdict.faithful:
             raise LlmOutputRejectedError(
-                "manual LLM explanation failed deterministic faithfulness grading"
+                "manual LLM explanation failed deterministic evidence validation"
             )
         return explanation
 

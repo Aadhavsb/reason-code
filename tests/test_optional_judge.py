@@ -184,7 +184,7 @@ def test_manual_generator_rejects_unfaithful_mocked_output() -> None:
     client = ManualLlmClient(
         JudgeSettings(mode="manual", provider="ollama", model="local-test-model"), transport
     )
-    with pytest.raises(LlmOutputRejectedError, match="faithfulness"):
+    with pytest.raises(LlmOutputRejectedError, match="evidence validation"):
         ManualExplanationGenerator(client).generate(EVIDENCE)
 
 
