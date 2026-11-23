@@ -11,14 +11,16 @@ Reason Code must be buildable, testable, and reviewable without paid services, c
 
 ## Explicit opt-in only
 
-The following are **not** part of normal development or PR CI. They require a deliberate local command, a user-provided credential, and a documented cost check before they run:
+The following are **not** part of normal development or PR CI. They require a deliberate local command, a user-provided credential where applicable, and a documented cost check before they run:
 
 1. downloading an HMDA data slice;
 2. calling an LLM generator or judge;
 3. provisioning any cloud database, model endpoint, observability service, or deployment;
 4. recording or hosting a public demo.
 
-If an LLM judge is later evaluated, its recorded-response fixture remains the test default. The deterministic programmatic faithfulness grader is the blocking quality gate.
+The optional LLM path is intentionally constrained: its default is disabled or a recorded synthetic response; local Ollama is allowed only at `localhost`/`127.0.0.1`; and Groq or Gemini may be selected only explicitly for a manually run, free-tier evaluation. It never auto-falls back between providers and rejects paid or arbitrary public endpoints. No API key belongs in the repository, CI, or default application flow.
+
+Recorded judge fixtures remain the test default. The deterministic programmatic faithfulness grader is the blocking quality gate; the LLM judge is advisory evaluation, not the authority on evidence faithfulness.
 
 ## Cost-review checklist
 
