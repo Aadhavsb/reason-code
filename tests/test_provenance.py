@@ -5,7 +5,12 @@ from pathlib import Path
 
 import pytest
 
-from reason_code.provenance import ManifestValidationError, manifest_hash, validate_manifest
+from reason_code.provenance import (
+    ManifestValidationError,
+    load_manifest,
+    manifest_hash,
+    validate_manifest,
+)
 
 
 @pytest.fixture
@@ -51,11 +56,60 @@ def test_manifest_rejects_invalid_required_values(manifest, field, value, messag
         validate_manifest(manifest)
 
 
+@pytest.mark.parametrize("value", ["20261123", "2026-1-23", "2026-11-23T00:00:00", " 2026-11-23"])
+def test_manifest_requires_canonical_download_date(manifest, value):
+    manifest["download_date"] = value
+
+    with pytest.raises(ManifestValidationError, match="ISO-8601"):
+        validate_manifest(manifest)
+
+
+@pytest.mark.parametrize(
+    ("url", "message"),
+    [
+        ("https://user:password@example.gov/hmda.csv", "embedded credentials"),
+        ("https://example.gov/hmda.csv?access_token=secret", "embed tokens"),
+        ("https://example.gov/hmda.csv#token", "embed tokens"),
+        ("https://example.gov/a file.csv", "whitespace or control"),
+        ("https://example.gov/hmda%0Acsv", "whitespace or control"),
+    ],
+)
+def test_manifest_rejects_unsafe_source_urls(manifest, url, message):
+    manifest["source_url"] = url
+
+    with pytest.raises(ManifestValidationError, match=message):
+        validate_manifest(manifest)
+
+
+def test_manifest_forbids_unknown_fields(manifest):
+    manifest["unreviewed_override"] = True
+
+    with pytest.raises(ManifestValidationError, match="unknown fields are forbidden"):
+        validate_manifest(manifest)
+
+
 def test_manifest_requires_filter_object(manifest):
     manifest["filter"] = "activity_year=2025"
 
     with pytest.raises(ManifestValidationError, match="filter must be a JSON object"):
         validate_manifest(manifest)
+
+
+@pytest.mark.parametrize("filename", ["missing.json", "directory"])
+def test_load_manifest_translates_read_failures(tmp_path: Path, filename):
+    if filename == "directory":
+        (tmp_path / filename).mkdir()
+
+    with pytest.raises(ManifestValidationError, match="cannot be read"):
+        load_manifest(tmp_path / filename)
+
+
+def test_load_manifest_translates_invalid_utf8(tmp_path: Path):
+    manifest_path = tmp_path / "invalid-utf8.json"
+    manifest_path.write_bytes(b"\xff")
+
+    with pytest.raises(ManifestValidationError, match="cannot be read"):
+        load_manifest(manifest_path)
 
 
 def test_module_cli_validates_and_hashes_without_network_access(tmp_path: Path, manifest):
