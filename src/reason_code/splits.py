@@ -43,7 +43,7 @@ class ChronologicalSplitSpec:
             raise SplitSpecificationError("train_end must be earlier than validation_end")
 
     @classmethod
-    def from_iso_dates(cls, train_end: str, validation_end: str) -> "ChronologicalSplitSpec":
+    def from_iso_dates(cls, train_end: str, validation_end: str) -> ChronologicalSplitSpec:
         return cls(
             train_end=_parse_date(train_end, "train_end"),
             validation_end=_parse_date(validation_end, "validation_end"),
@@ -65,14 +65,19 @@ class ChronologicalSplitSpec:
         result: dict[str, list[Mapping[str, Any]]] = {"train": [], "validation": [], "test": []}
         for index, record in enumerate(records):
             if date_field not in record:
-                raise SplitSpecificationError(f"record {index} is missing date field {date_field!r}")
+                raise SplitSpecificationError(
+                    f"record {index} is missing date field {date_field!r}"
+                )
             result[self.assign(record[date_field])].append(record)
         return result
 
     def as_dict(self) -> dict[str, str]:
         """Serialize the contract alongside experiment metadata."""
         return {
-            "rule": "train <= train_end; train_end < validation <= validation_end; test > validation_end",
+            "rule": (
+                "train <= train_end; train_end < validation <= validation_end; "
+                "test > validation_end"
+            ),
             "train_end": self.train_end.isoformat(),
             "validation_end": self.validation_end.isoformat(),
         }

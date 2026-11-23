@@ -1,13 +1,28 @@
+import pytest
+from pydantic import ValidationError
+
 from reason_code.decision import DecisionService
-from reason_code.schemas import Application, Decision, ScoreResult
+from reason_code.schemas import (
+    Application,
+    Attribution,
+    AttributionDirection,
+    Decision,
+    DecisionThresholds,
+    ScoreResult,
+)
 
 
 class FixedScorer:
-    def __init__(self, risk_score: float) -> None:
+    def __init__(self, risk_score: float, attributions: list[Attribution] | None = None) -> None:
         self.risk_score = risk_score
+        self.attributions = attributions or []
 
     def score(self, application: Application) -> ScoreResult:
-        return ScoreResult(risk_score=self.risk_score, score_source="test_calibrated_score")
+        return ScoreResult(
+            risk_score=self.risk_score,
+            score_source="test_calibrated_score",
+            attributions=self.attributions,
+        )
 
 
 def application() -> Application:
@@ -20,9 +35,20 @@ def application() -> Application:
     )
 
 
+def supporting_attribution() -> Attribution:
+    return Attribution(
+        factor="test_factor",
+        direction=AttributionDirection.INCREASES_RISK,
+        contribution=0.7,
+        detail="Test-only supporting factor.",
+    )
+
+
 def test_threshold_policy_routes_low_middle_and_high_scores() -> None:
     decisions = {
-        score: DecisionService(FixedScorer(score)).decide(application()).decision
+        score: DecisionService(
+            FixedScorer(score, [supporting_attribution()] if score > 0.60 else [])
+        ).decide(application()).decision
         for score in (0.39, 0.40, 0.60, 0.61)
     }
 
@@ -42,3 +68,26 @@ def test_service_preserves_scorer_attributions() -> None:
     assert response.score_source == "test_calibrated_score"
     assert response.attributions == []
     assert "not lending advice" in response.demo_notice
+
+
+def test_decline_requires_a_supporting_attribution() -> None:
+    with pytest.raises(ValidationError, match="supporting attribution"):
+        DecisionService(FixedScorer(0.61)).decide(application())
+
+
+def test_thresholds_are_immutable_and_not_shared_between_default_services() -> None:
+    first = DecisionService(FixedScorer(0.39))
+    second = DecisionService(FixedScorer(0.39))
+
+    assert first._thresholds is not second._thresholds
+    with pytest.raises(ValidationError, match="frozen"):
+        first._thresholds.approve_below = 0.20
+
+
+def test_policy_version_is_bound_to_applied_threshold_values() -> None:
+    response = DecisionService(
+        FixedScorer(0.50),
+        thresholds=DecisionThresholds(approve_below=0.25, decline_above=0.75),
+    ).decide(application())
+
+    assert response.policy_version == "demo-thresholds-v1:approve_below=0.25;decline_above=0.75"

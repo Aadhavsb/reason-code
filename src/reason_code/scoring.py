@@ -47,10 +47,11 @@ class DemoHeuristicScorer:
                 ),
                 Attribution(
                     factor="credit_score",
-                    direction=AttributionDirection.INCREASES_RISK,
+                    direction=AttributionDirection.DECREASES_RISK,
                     contribution=credit_component,
                     detail=(
-                        "Demo heuristic contribution from credit score distance to the upper bound."
+                        "Higher credit scores decrease demo heuristic risk; this contribution "
+                        "measures distance from the upper bound."
                     ),
                 ),
             ],

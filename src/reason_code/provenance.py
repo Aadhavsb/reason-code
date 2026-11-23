@@ -54,8 +54,12 @@ def _validate_date(value: str) -> None:
 
 def _validate_hash(value: str) -> str:
     normalized = value.lower()
-    if len(normalized) != 64 or any(character not in "0123456789abcdef" for character in normalized):
-        raise ManifestValidationError("source_version_hash must be a 64-character SHA-256 hex digest")
+    if len(normalized) != 64 or any(
+        character not in "0123456789abcdef" for character in normalized
+    ):
+        raise ManifestValidationError(
+            "source_version_hash must be a 64-character SHA-256 hex digest"
+        )
     return normalized
 
 
@@ -71,10 +75,13 @@ def validate_manifest(manifest: Mapping[str, Any]) -> dict[str, Any]:
 
     missing = REQUIRED_FIELDS.difference(manifest)
     if missing:
-        raise ManifestValidationError(f"manifest is missing required fields: {', '.join(sorted(missing))}")
+        raise ManifestValidationError(
+            f"manifest is missing required fields: {', '.join(sorted(missing))}"
+        )
     if manifest["schema_version"] != MANIFEST_SCHEMA_VERSION:
         raise ManifestValidationError(
-            f"schema_version must be {MANIFEST_SCHEMA_VERSION!r}, got {manifest['schema_version']!r}"
+            f"schema_version must be {MANIFEST_SCHEMA_VERSION!r}, "
+            f"got {manifest['schema_version']!r}"
         )
 
     source_url = _require_string(manifest, "source_url")
@@ -84,7 +91,9 @@ def validate_manifest(manifest: Mapping[str, Any]) -> dict[str, Any]:
 
     filters = manifest["filter"]
     if not isinstance(filters, Mapping):
-        raise ManifestValidationError("filter must be a JSON object; use {} when no filters are applied")
+        raise ManifestValidationError(
+            "filter must be a JSON object; use {} when no filters are applied"
+        )
 
     fields = manifest["fields"]
     if isinstance(fields, (str, bytes)) or not isinstance(fields, Sequence) or not fields:
@@ -110,7 +119,9 @@ def validate_manifest(manifest: Mapping[str, Any]) -> dict[str, Any]:
 def manifest_hash(manifest: Mapping[str, Any]) -> str:
     """Return a stable SHA-256 fingerprint of a validated manifest's contents."""
     normalized = validate_manifest(manifest)
-    canonical_json = json.dumps(normalized, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    canonical_json = json.dumps(
+        normalized, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+    )
     return hashlib.sha256(canonical_json.encode("utf-8")).hexdigest()
 
 
@@ -127,7 +138,9 @@ def load_manifest(path: str | Path) -> dict[str, Any]:
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the local manifest validator or canonical manifest hasher."""
-    parser = argparse.ArgumentParser(description="Validate or hash a local HMDA provenance manifest.")
+    parser = argparse.ArgumentParser(
+        description="Validate or hash a local HMDA provenance manifest."
+    )
     parser.add_argument("command", choices=("validate", "hash"))
     parser.add_argument("manifest", type=Path, help="path to a local JSON provenance manifest")
     args = parser.parse_args(argv)

@@ -1,8 +1,11 @@
 """FastAPI entrypoint for the decision-support demo."""
 
-from typing import Annotated
+import math
+from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
 from reason_code.decision import DecisionService
 from reason_code.schemas import Application, DecisionResponse
@@ -13,6 +16,27 @@ app = FastAPI(
     description="Decision-support demo only; not production underwriting or lending advice.",
     version="0.1.0",
 )
+
+
+def _json_safe(value: Any) -> Any:
+    """Replace non-finite validation inputs so the 422 response remains valid JSON."""
+    if isinstance(value, float) and not math.isfinite(value):
+        return str(value)
+    if isinstance(value, dict):
+        return {key: _json_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, tuple):
+        return [_json_safe(item) for item in value]
+    return value
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_exception_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    """Return JSON-safe 422 details when a client supplies NaN or infinity."""
+    return JSONResponse(status_code=422, content={"detail": _json_safe(exc.errors())})
 
 
 def get_decision_service() -> DecisionService:
