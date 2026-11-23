@@ -83,7 +83,8 @@ def test_serializes_split_contract_for_experiment_evidence():
 
     assert spec.as_dict() == {
         "rule": (
-            "train <= train_end; train_end < validation <= validation_end; test > validation_end"
+            "train <= train_end; train_end < validation <= validation_end; "
+            "test > validation_end"
         ),
         "train_end": "2023-12-31",
         "validation_end": "2024-12-31",

@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 class Application(BaseModel):
     """Minimal application-shaped input accepted by the demo."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
     application_id: str = Field(min_length=1, max_length=128)
     annual_income: float = Field(gt=0, description="Applicant-reported annual income.")
@@ -29,7 +29,7 @@ class AttributionDirection(StrEnum):
 class Attribution(BaseModel):
     """A scorer-supported factor contribution used in a decision response."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
     factor: str = Field(min_length=1, max_length=64)
     direction: AttributionDirection
@@ -44,7 +44,7 @@ class ScoreResult(BaseModel):
     model. The bundled scorer labels its output as a demo heuristic instead.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
     risk_score: float = Field(ge=0, le=1)
     score_source: str = Field(min_length=1, max_length=128)
@@ -60,7 +60,7 @@ class Decision(StrEnum):
 class DecisionResponse(BaseModel):
     """Decision-core output; no reason-code mapping or explanation is implied."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
     application_id: str
     decision: Decision
@@ -70,11 +70,17 @@ class DecisionResponse(BaseModel):
     policy_version: str
     demo_notice: str
 
+    @model_validator(mode="after")
+    def declines_require_supporting_attributions(self) -> "DecisionResponse":
+        if self.decision is Decision.DECLINE and not self.attributions:
+            raise ValueError("decline decisions require at least one supporting attribution")
+        return self
+
 
 class DecisionThresholds(BaseModel):
     """Risk-score policy with an inclusive human-review confidence band."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", frozen=True, allow_inf_nan=False)
 
     approve_below: float = Field(ge=0, le=1)
     decline_above: float = Field(ge=0, le=1)

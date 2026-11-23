@@ -1,13 +1,28 @@
+import json
+import math
+
+import pytest
 from fastapi.testclient import TestClient
 
 from reason_code.api import app, get_decision_service
 from reason_code.decision import DecisionService
-from reason_code.schemas import ScoreResult
+from reason_code.schemas import Attribution, AttributionDirection, ScoreResult
 
 
 class InjectedScorer:
     def score(self, application):
-        return ScoreResult(risk_score=0.61, score_source="injected_test_scorer")
+        return ScoreResult(
+            risk_score=0.61,
+            score_source="injected_test_scorer",
+            attributions=[
+                Attribution(
+                    factor="test_factor",
+                    direction=AttributionDirection.INCREASES_RISK,
+                    contribution=0.61,
+                    detail="Test-only supporting factor.",
+                )
+            ],
+        )
 
 
 def valid_payload() -> dict[str, object]:
@@ -38,5 +53,17 @@ def test_post_decisions_rejects_invalid_application() -> None:
     payload["unexpected"] = "not accepted"
 
     response = TestClient(app).post("/decisions", json=payload)
+
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize("non_finite", [math.nan, math.inf, -math.inf])
+def test_post_decisions_rejects_non_finite_numbers_as_validation_errors(non_finite: float) -> None:
+    payload = valid_payload()
+    payload["annual_income"] = non_finite
+
+    response = TestClient(app).post(
+        "/decisions", content=json.dumps(payload), headers={"content-type": "application/json"}
+    )
 
     assert response.status_code == 422
