@@ -1,12 +1,13 @@
 """FastAPI entrypoint for the decision-support demo."""
 
 import math
+from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from reason_code.decision import DecisionService
 from reason_code.schemas import Application, DecisionResponse
@@ -17,6 +18,15 @@ app = FastAPI(
     description="Decision-support demo only; not production underwriting or lending advice.",
     version="0.1.0",
 )
+_UI_PATH = Path(__file__).with_name("static") / "index.html"
+
+
+@app.get("/", include_in_schema=False)
+def local_demo() -> FileResponse:
+    """Serve the self-contained, local-only walkthrough interface."""
+    if not _UI_PATH.is_file():
+        raise HTTPException(status_code=503, detail="Local demo UI asset is unavailable.")
+    return FileResponse(_UI_PATH, media_type="text/html")
 
 
 def _json_safe(value: Any) -> Any:

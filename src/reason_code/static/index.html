@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Local Reason Code decision-support demo interface.">
+  <title>Reason Code | Case File</title>
+  <style>
+    :root { --ink:#e9e6dd; --muted:#aaa79d; --paper:#171915; --paper-raised:#20231d; --line:#55584c; --line-soft:#34372f; --acid:#c9d872; --acid-ink:#172010; --copper:#d9a46f; --red:#efaa9d; --blue:#9dc5cb; --focus:#f4db8d; --serif:Georgia, 'Times New Roman', serif; --mono:'Courier New', Courier, monospace; }
+    * { box-sizing:border-box; }
+    html { background:var(--paper); color:var(--ink); }
+    body { margin:0; min-width:320px; font-family:var(--mono); background:radial-gradient(circle at 82% 0%, #343a2866, transparent 31rem), var(--paper); line-height:1.5; }
+    button, input { font:inherit; }
+    button { cursor:pointer; }
+    button:focus-visible, input:focus-visible, summary:focus-visible { outline:3px solid var(--focus); outline-offset:3px; }
+    .skip { position:absolute; left:1rem; top:-4rem; z-index:10; padding:.6rem .85rem; background:var(--focus); color:#171915; font-weight:bold; } .skip:focus { top:1rem; }
+    .page { width:min(1180px, calc(100% - 2rem)); margin:0 auto; padding:1.5rem 0 4rem; }
+    .masthead { display:flex; justify-content:space-between; align-items:start; gap:1rem; padding:0 0 1.25rem; border-bottom:1px solid var(--line); }
+    .eyebrow, .field-label, .section-kicker, .stamp, .micro { letter-spacing:.11em; text-transform:uppercase; font-size:.72rem; font-weight:bold; }
+    .eyebrow { color:var(--acid); margin:0 0 .38rem; } h1,h2,h3,p { margin-top:0; } h1 { font:normal clamp(2.2rem, 6vw, 4.75rem)/.9 var(--serif); letter-spacing:-.055em; margin-bottom:.6rem; } h2 { font:normal clamp(1.5rem, 3vw, 2.25rem)/1 var(--serif); letter-spacing:-.035em; margin-bottom:1rem; } h3 { font-size:.9rem; margin-bottom:.35rem; }
+    .subtitle { max-width:46rem; color:var(--muted); margin-bottom:0; font-size:.9rem; }
+    .local-mark { max-width:15rem; border:1px solid var(--acid); color:var(--acid); padding:.45rem .65rem; line-height:1.25; text-align:right; }
+    .notice { display:grid; grid-template-columns:auto 1fr; gap:.7rem; margin:1.5rem 0; padding:.85rem 1rem; border:1px solid #76643b; background:#2a281c; color:#e9dfc1; font-size:.83rem; } .notice svg { width:1.1rem; height:1.1rem; margin-top:.06rem; flex:none; }
+    .case-grid { display:grid; grid-template-columns:minmax(18rem,.78fr) minmax(0,1.22fr); gap:1px; background:var(--line); border:1px solid var(--line); }
+    .panel { background:var(--paper); padding:clamp(1rem, 3vw, 1.7rem); } .result-panel { background:linear-gradient(145deg, #20231c, #191b17); }
+    .section-kicker { color:var(--copper); margin-bottom:.4rem; }
+    form { display:grid; gap:.9rem; } .field { display:grid; gap:.32rem; } label { font-size:.78rem; color:var(--ink); } .hint { color:var(--muted); font-size:.71rem; }
+    input { width:100%; border:1px solid var(--line); border-radius:0; background:#11130f; color:var(--ink); padding:.66rem .7rem; } input:hover { border-color:#818577; } input:invalid:not(:placeholder-shown) { border-color:var(--red); }
+    .submit { border:0; margin-top:.35rem; padding:.78rem 1rem; background:var(--acid); color:var(--acid-ink); font-weight:bold; text-align:left; display:flex; justify-content:space-between; align-items:center; transition:background .18s ease, transform .18s ease; } .submit:hover { background:#e0e99b; transform:translateY(-1px); } .submit:disabled { cursor:wait; opacity:.65; transform:none; }
+    .case-id { border-top:1px dashed var(--line); margin-top:1rem; padding-top:1rem; color:var(--muted); font-size:.72rem; }
+    .result-header { display:flex; justify-content:space-between; gap:1rem; align-items:start; border-bottom:1px solid var(--line); padding-bottom:1rem; margin-bottom:1rem; } .result-copy { color:var(--muted); font-size:.82rem; max-width:35rem; margin-bottom:0; }
+    .decision { display:inline-flex; align-items:center; gap:.45rem; padding:.3rem .48rem; border:1px solid var(--line); font-size:.75rem; text-transform:uppercase; letter-spacing:.09em; font-weight:bold; white-space:nowrap; } .decision::before { content:''; width:.48rem; height:.48rem; border-radius:50%; background:var(--muted); } .decision.approve { color:var(--acid); border-color:#79884a; } .decision.approve::before { background:var(--acid); } .decision.decline { color:var(--red); border-color:#8f5a54; } .decision.decline::before { background:var(--red); } .decision.human-review { color:var(--copper); border-color:#8c6849; } .decision.human-review::before { background:var(--copper); }
+    .score-row { display:grid; grid-template-columns:minmax(7rem, .72fr) 1.28fr; gap:1.2rem; align-items:end; margin:1.2rem 0 1.5rem; } .score-value { font:normal clamp(3rem, 7vw, 5.5rem)/.75 var(--serif); letter-spacing:-.08em; } .score-label { margin-top:.6rem; color:var(--muted); font-size:.7rem; text-transform:uppercase; letter-spacing:.08em; } .scale { position:relative; height:1.5rem; border-bottom:2px solid var(--line); } .scale-line { position:absolute; bottom:-2px; left:0; height:2px; background:var(--acid); max-width:100%; } .marker { position:absolute; bottom:-.4rem; width:.75rem; height:.75rem; border:2px solid var(--paper-raised); border-radius:50%; background:var(--acid); transform:translateX(-50%); } .thresholds { display:flex; justify-content:space-between; color:var(--muted); font-size:.63rem; margin-top:.45rem; }
+    .facts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1px; background:var(--line-soft); border:1px solid var(--line-soft); } .fact { padding:.72rem; background:#181b16; } .fact strong { display:block; overflow-wrap:anywhere; font-size:.78rem; line-height:1.3; } .fact span { display:block; margin-bottom:.25rem; color:var(--muted); font-size:.62rem; letter-spacing:.08em; text-transform:uppercase; }
+    .lower { display:grid; grid-template-columns:1.15fr .85fr; gap:1rem; margin-top:1rem; } .ledger, .evidence { border:1px solid var(--line); padding:1.25rem; background:#1b1e18; } .ledger header, .evidence header { display:flex; justify-content:space-between; gap:.75rem; align-items:baseline; margin-bottom:.9rem; } .ledger header p, .evidence header p { color:var(--muted); font-size:.73rem; margin-bottom:0; }
+    .attrib-list { list-style:none; padding:0; margin:0; display:grid; gap:.72rem; } .attrib { border-left:2px solid var(--copper); padding-left:.7rem; } .attrib-name { display:flex; gap:.6rem; justify-content:space-between; font-size:.8rem; } .attrib-name code { color:var(--ink); font-family:var(--mono); overflow-wrap:anywhere; } .contribution { color:var(--copper); white-space:nowrap; } .attrib-detail { color:var(--muted); font-size:.72rem; margin:.15rem 0 0; }
+    .verdict { border:1px dashed #847c65; padding:.85rem; background:#202018; } .verdict-state { display:flex; gap:.5rem; align-items:center; color:#e5d7a5; font-weight:bold; font-size:.82rem; } .verdict-state svg { width:1rem; height:1rem; } .verdict p { color:var(--muted); font-size:.76rem; margin:.5rem 0 0; } details { margin-top:1rem; border-top:1px solid var(--line-soft); padding-top:.75rem; } summary { cursor:pointer; color:var(--blue); font-size:.77rem; } details p, details ul { color:var(--muted); font-size:.73rem; } details ul { padding-left:1.15rem; } .error { color:var(--red); background:#2b1d1b; border:1px solid #7c4f4b; padding:.8rem; font-size:.78rem; } .hidden { display:none !important; }
+    .footer { margin-top:1rem; border-top:1px solid var(--line); padding-top:1rem; color:var(--muted); font-size:.7rem; } .footer strong { color:var(--ink); }
+    @media (max-width: 760px) { .page { width:min(100% - 1rem, 1180px); padding-top:1rem; } .masthead { display:block; } .local-mark { text-align:left; margin-top:1rem; } .case-grid, .lower { grid-template-columns:1fr; } .score-row { grid-template-columns:1fr; gap:.8rem; } .facts { grid-template-columns:1fr; } }
+    @media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; scroll-behavior:auto !important; } }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#case-result">Skip to case result</a>
+  <main class="page">
+    <header class="masthead">
+      <div><p class="eyebrow">Reason Code / Local dossier</p><h1>Decision<br>case file</h1><p class="subtitle">A transparent view of what the demo API receives, returns, and deliberately does not claim.</p></div>
+      <div class="local-mark micro">Local-only interface<br>no network services or LLM calls</div>
+    </header>
+
+    <aside class="notice" aria-label="Demo-only notice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5m0 4h.01"/></svg><div><strong>Decision-support demo only.</strong> This interface is not lending advice or production underwriting. It displays a deterministic demo heuristic, not a calibrated model or a real reason-code mapping.</div></aside>
+
+    <section class="case-grid" aria-labelledby="application-heading">
+      <div class="panel">
+        <p class="section-kicker">01 / Application record</p><h2 id="application-heading">Submit a synthetic case.</h2>
+        <form id="application-form" novalidate>
+          <div class="field"><label for="application_id">Case ID</label><input id="application_id" name="application_id" value="walkthrough-case-01" maxlength="128" required aria-describedby="case-id-hint"><span id="case-id-hint" class="hint">Local label only; no applicant data is stored.</span></div>
+          <div class="field"><label for="annual_income">Annual income</label><input id="annual_income" name="annual_income" type="number" value="90000" min="0.01" step="0.01" required><span class="hint">Positive number, in dollars for this demo input.</span></div>
+          <div class="field"><label for="requested_amount">Requested amount</label><input id="requested_amount" name="requested_amount" type="number" value="55000" min="0.01" step="0.01" required></div>
+          <div class="field"><label for="debt_to_income_ratio">Debt-to-income ratio</label><input id="debt_to_income_ratio" name="debt_to_income_ratio" type="number" value="60" min="0" max="100" step="0.01" required><span class="hint">Percentage from 0 through 100.</span></div>
+          <div class="field"><label for="credit_score">Credit score</label><input id="credit_score" name="credit_score" type="number" value="640" min="300" max="850" step="1" required></div>
+          <button class="submit" type="submit"><span>Run local decision</span><span aria-hidden="true">→</span></button>
+        </form>
+        <p class="case-id">The API accepts only the five fields shown. Validation errors stay in this browser session.</p>
+      </div>
+
+      <section class="panel result-panel" id="case-result" aria-labelledby="result-heading">
+        <div class="result-header"><div><p class="section-kicker">02 / Decision record</p><h2 id="result-heading" tabindex="-1">Awaiting a case.</h2><p class="result-copy" id="result-copy" role="status">Submit a synthetic application record to inspect the API response.</p></div><span class="decision" id="decision-badge">Not run</span></div>
+        <div id="error-message" class="error hidden" role="alert"></div>
+        <div id="result-content" class="hidden">
+          <div class="score-row"><div><div class="score-value" id="risk-score">—</div><div class="score-label">Risk score / 0–1 scale</div></div><div><div class="scale" role="img" aria-label="Risk score position on a zero to one scale"><span class="scale-line" id="score-line"></span><span class="marker" id="score-marker"></span></div><div class="thresholds"><span>0.00</span><span id="review-band">Review band<br>See policy version</span><span>1.00</span></div></div></div>
+          <div class="facts"><div class="fact"><span>Application ID</span><strong id="fact-id">—</strong></div><div class="fact"><span>Score source</span><strong id="fact-source">—</strong></div><div class="fact"><span>Policy version</span><strong id="fact-policy">—</strong></div><div class="fact"><span>Returned notice</span><strong id="fact-notice">—</strong></div></div>
+        </div>
+      </section>
+    </section>
+
+    <section class="lower" aria-label="Evidence details">
+      <article class="ledger" aria-labelledby="attributions-heading"><header><div><p class="section-kicker">03 / Attribution ledger</p><h2 id="attributions-heading">Scorer-supported inputs</h2></div><p>Returned by API</p></header><ul class="attrib-list" id="attribution-list"><li class="attrib"><div class="attrib-name"><code>Awaiting a decision response</code></div><p class="attrib-detail">Attributions will appear exactly as returned by the local demo scorer.</p></li></ul></article>
+      <article class="evidence" aria-labelledby="evidence-heading"><header><div><p class="section-kicker">04 / Explanation check</p><h2 id="evidence-heading">Evidence verdict</h2></div><p>Current API boundary</p></header><div class="verdict"><div class="verdict-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 9v4m0 4h.01"/><path d="M10.3 3.8 2.7 17a2 2 0 0 0 1.7 3h15.2a2 2 0 0 0 1.7-3L13.7 3.8a2 2 0 0 0-3.4 0Z"/></svg><span>Not computed by <code>/decisions</code></span></div><p>The decision endpoint currently returns a decision, score, source, policy version, and attributions. It does not return a reason-code mapping, an explanation, a closed evidence set, or a faithfulness verdict.</p></div><details><summary>Why this is shown as unavailable</summary><p>The repository contains deterministic explanation and evidence-grading utilities, but they are not wired into the decision API. This UI does not infer a reason code or manufacture a verdict from the visible factors.</p><ul><li>No HMDA dataset is loaded or represented here.</li><li>No calibrated-model performance or approval metric is displayed.</li><li>No external service, hosted asset, or LLM request is made.</li></ul></details></article>
+    </section>
+
+    <footer class="footer"><strong>Walkthrough boundary:</strong> this page is a local demo interface. The repository's CLI and evaluation utilities remain separate from this UI.</footer>
+  </main>
+  <script>
+    const form = document.querySelector('#application-form');
+    const submit = form.querySelector('button[type="submit"]');
+    const resultContent = document.querySelector('#result-content');
+    const errorMessage = document.querySelector('#error-message');
+    const badge = document.querySelector('#decision-badge');
+    const resultHeading = document.querySelector('#result-heading');
+    const resultCopy = document.querySelector('#result-copy');
+    const score = document.querySelector('#risk-score');
+    const scoreLine = document.querySelector('#score-line');
+    const scoreMarker = document.querySelector('#score-marker');
+    const reviewBand = document.querySelector('#review-band');
+    const attributionList = document.querySelector('#attribution-list');
+    const field = (name) => form.elements[name];
+
+    function showError(message) {
+      resultContent.classList.add('hidden');
+      badge.textContent = 'Not run'; badge.className = 'decision';
+      resultHeading.textContent = 'No decision returned.';
+      resultCopy.textContent = `Submission issue: ${message}`;
+      errorMessage.textContent = message; errorMessage.classList.remove('hidden');
+    }
+    function clearError() { errorMessage.textContent = ''; errorMessage.classList.add('hidden'); }
+    function valueFor(name) { return Number(field(name).value); }
+    function formatContribution(value) { return `${(value * 100).toFixed(1)}%`; }
+    function renderAttributions(attributions) {
+      attributionList.replaceChildren();
+      if (!attributions.length) { attributionList.innerHTML = '<li class="attrib"><p class="attrib-detail">The API returned no attributions.</p></li>'; return; }
+      for (const attribution of attributions) {
+        const item = document.createElement('li'); item.className = 'attrib';
+        const name = document.createElement('div'); name.className = 'attrib-name';
+        const factor = document.createElement('code'); factor.textContent = attribution.factor;
+        const contribution = document.createElement('span'); contribution.className = 'contribution'; contribution.textContent = `${attribution.direction.replaceAll('_', ' ')} · ${formatContribution(attribution.contribution)}`;
+        name.append(factor, contribution);
+        const detail = document.createElement('p'); detail.className = 'attrib-detail'; detail.textContent = attribution.detail;
+        item.append(name, detail); attributionList.append(item);
+      }
+    }
+    function reviewBandFor(policyVersion) {
+      const match = /^.+:approve_below=([0-9.]+);decline_above=([0-9.]+)$/.exec(policyVersion);
+      return match ? `Review band\n${match[1]}–${match[2]}` : 'Review band\nSee policy version';
+    }
+    function renderResult(data) {
+      const required = ['application_id', 'decision', 'risk_score', 'score_source', 'policy_version', 'demo_notice', 'attributions'];
+      if (!data || required.some((key) => !(key in data)) || !Number.isFinite(data.risk_score) || !Array.isArray(data.attributions)) {
+        throw new Error('The local API returned an incomplete decision response.');
+      }
+      const percentage = Math.min(100, Math.max(0, data.risk_score * 100));
+      resultHeading.textContent = `Case ${data.application_id}`;
+      resultCopy.textContent = `Decision: ${data.decision.replaceAll('_', ' ')}. Risk score: ${data.risk_score.toFixed(3)}.`;
+      badge.textContent = data.decision.replaceAll('_', ' '); badge.className = `decision ${data.decision.replaceAll('_', '-')}`;
+      score.textContent = data.risk_score.toFixed(3); scoreLine.style.width = `${percentage}%`; scoreMarker.style.left = `${percentage}%`;
+      reviewBand.textContent = reviewBandFor(data.policy_version);
+      document.querySelector('#fact-id').textContent = data.application_id;
+      document.querySelector('#fact-source').textContent = data.score_source;
+      document.querySelector('#fact-policy').textContent = data.policy_version;
+      document.querySelector('#fact-notice').textContent = data.demo_notice;
+      renderAttributions(data.attributions); resultContent.classList.remove('hidden');
+    }
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault(); clearError();
+      field('application_id').value = field('application_id').value.trim();
+      if (!form.reportValidity()) return;
+      const payload = { application_id: field('application_id').value, annual_income: valueFor('annual_income'), requested_amount: valueFor('requested_amount'), debt_to_income_ratio: valueFor('debt_to_income_ratio'), credit_score: valueFor('credit_score') };
+      submit.disabled = true; submit.firstElementChild.textContent = 'Running local decision…';
+      try {
+        const response = await fetch('/decisions', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+        let data = null;
+        if (response.headers.get('content-type')?.includes('application/json')) data = await response.json();
+        if (!response.ok) {
+          const detail = Array.isArray(data?.detail) ? data.detail.map((item) => `${item.loc?.at(-1) ?? 'input'}: ${item.msg}`).join(' ') : `The local API returned ${response.status}.`;
+          throw new Error(detail);
+        }
+        renderResult(data); resultHeading.focus();
+      } catch (error) {
+        const message = error instanceof TypeError ? 'The local API could not be reached. Start the FastAPI server and try again.' : error.message;
+        showError(message || 'The local API returned an unexpected response.');
+      } finally { submit.disabled = false; submit.firstElementChild.textContent = 'Run local decision'; }
+    });
+  </script>
+</body>
+</html>
