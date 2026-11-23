@@ -41,6 +41,7 @@
           }
         ]
       },
+      "expected_faithful": false,
       "unfaithful_claim": {
         "evidence_id": "debt_to_income",
         "kind": "factor",
