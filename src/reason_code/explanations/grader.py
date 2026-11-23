@@ -15,24 +15,26 @@ from .models import (
     GeneratedExplanation,
 )
 
-_NUMBER_PATTERN = re.compile(r"(?<![A-Za-z0-9])\$?\d[\d,]*(?:\.\d+)?%?")
+_NUMBER_PATTERN = re.compile(r"(?<![A-Za-z0-9])-?\$?\d[\d,]*(?:\.\d+)?%?")
 
 
 def _normalise_text(value: str) -> str:
     return " ".join(value.casefold().split())
 
 
-def _number_signature(token: str) -> tuple[Decimal, bool] | None:
-    """Normalise a numeric literal while retaining whether it is a percentage."""
+def _number_signature(token: str) -> tuple[Decimal, bool, bool] | None:
+    """Normalise a literal while retaining its sign, percentage, and currency semantics."""
     is_percent = token.endswith("%")
-    raw_value = token.removesuffix("%").removeprefix("$").replace(",", "")
+    raw_value = token.removesuffix("%").replace(",", "")
+    is_currency = "$" in raw_value
+    raw_value = raw_value.replace("$", "")
     try:
-        return Decimal(raw_value), is_percent
+        return Decimal(raw_value), is_percent, is_currency
     except InvalidOperation:
         return None
 
 
-def _numbers_in(value: object) -> set[tuple[Decimal, bool]]:
+def _numbers_in(value: object) -> set[tuple[Decimal, bool, bool]]:
     return {
         signature
         for token in _NUMBER_PATTERN.findall(str(value))
@@ -40,7 +42,7 @@ def _numbers_in(value: object) -> set[tuple[Decimal, bool]]:
     }
 
 
-def _allowed_numbers(item: EvidenceItem) -> set[tuple[Decimal, bool]]:
+def _allowed_numbers(item: EvidenceItem) -> set[tuple[Decimal, bool, bool]]:
     """Collect literals explicitly present in the cited evidence item only."""
     values: list[object] = [item.label]
     if item.value is not None:
@@ -61,6 +63,39 @@ def grade_faithfulness(
     """
     by_id = {item.evidence_id: item for item in evidence.items}
     reasons: list[FaithfulnessReason] = []
+
+    if explanation.case_id != evidence.case_id:
+        reasons.append(
+            FaithfulnessReason(
+                code=FaithfulnessReasonCode.CASE_ID_MISMATCH,
+                message=(
+                    f"Explanation case_id '{explanation.case_id}' does not match "
+                    f"evidence case_id '{evidence.case_id}'."
+                ),
+            )
+        )
+
+    rendered_trace = " ".join(claim.statement for claim in explanation.claims)
+    if _normalise_text(explanation.text) != _normalise_text(rendered_trace):
+        reasons.append(
+            FaithfulnessReason(
+                code=FaithfulnessReasonCode.TEXT_TRACE_MISMATCH,
+                message="Explanation text does not match its rendered claim trace.",
+            )
+        )
+
+    cited_evidence_ids = tuple(claim.evidence_id for claim in explanation.claims)
+    expected_evidence_ids = tuple(item.evidence_id for item in evidence.items)
+    if cited_evidence_ids != expected_evidence_ids:
+        reasons.append(
+            FaithfulnessReason(
+                code=FaithfulnessReasonCode.CLAIM_COVERAGE_MISMATCH,
+                message=(
+                    "Claim evidence IDs must exactly match the supplied evidence IDs "
+                    "in their presentation order."
+                ),
+            )
+        )
 
     for claim_index, claim in enumerate(explanation.claims):
         item = by_id.get(claim.evidence_id)

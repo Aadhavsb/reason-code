@@ -55,6 +55,7 @@ def test_grader_rejects_unsupported_factor_and_number() -> None:
     case = _fixture_cases()["synthetic-unfaithful-001"]
     evidence = ExplanationEvidence.model_validate(case["evidence"])
     explanation = GeneratedExplanation(
+        case_id="synthetic-unfaithful-001",
         text="Employment history: 42%.",
         claims=(ExplanationClaim.model_validate(case["unfaithful_claim"]),),
     )
@@ -67,7 +68,7 @@ def test_grader_rejects_unsupported_factor_and_number() -> None:
         FaithfulnessReasonCode.UNSUPPORTED_STATEMENT,
         FaithfulnessReasonCode.UNSUPPORTED_NUMBER,
     }
-    assert [reason.code.value for reason in verdict.reasons] == case["expected_reason_codes"]
+    assert {reason.code.value for reason in verdict.reasons} == set(case["expected_reason_codes"])
 
 
 def test_grader_rejects_factor_appended_to_supported_statement() -> None:
@@ -85,6 +86,7 @@ def test_grader_rejects_factor_appended_to_supported_statement() -> None:
         }
     )
     explanation = GeneratedExplanation(
+        case_id="statement-injection",
         text="Debt-to-income ratio: 43%. Employment history was also considered.",
         claims=(
             ExplanationClaim(
@@ -106,6 +108,76 @@ def test_grader_rejects_factor_appended_to_supported_statement() -> None:
     ]
 
 
+def test_grader_rejects_tampered_text_and_case_binding() -> None:
+    evidence = ExplanationEvidence.model_validate(
+        {
+            "case_id": "bound-case",
+            "items": [
+                {
+                    "evidence_id": "decision",
+                    "kind": "decision",
+                    "label": "Human review",
+                }
+            ],
+        }
+    )
+    explanation = GeneratedExplanation(
+        case_id="other-case",
+        text="Denied because of a 710 credit score.",
+        claims=(
+            ExplanationClaim(
+                evidence_id="decision",
+                kind=EvidenceKind.DECISION,
+                subject="Human review",
+                statement="Human review.",
+            ),
+        ),
+    )
+
+    verdict = grade_faithfulness(explanation, evidence)
+
+    assert not verdict.faithful
+    assert {reason.code for reason in verdict.reasons} == {
+        FaithfulnessReasonCode.CASE_ID_MISMATCH,
+        FaithfulnessReasonCode.TEXT_TRACE_MISMATCH,
+    }
+
+
+def test_grader_rejects_missing_evidence_claim() -> None:
+    evidence = ExplanationEvidence.model_validate(
+        {
+            "case_id": "coverage-case",
+            "items": [
+                {"evidence_id": "decision", "kind": "decision", "label": "Human review"},
+                {
+                    "evidence_id": "reason_code",
+                    "kind": "reason_code",
+                    "label": "Debt-to-income reason code",
+                },
+            ],
+        }
+    )
+    explanation = GeneratedExplanation(
+        case_id="coverage-case",
+        text="Human review.",
+        claims=(
+            ExplanationClaim(
+                evidence_id="decision",
+                kind=EvidenceKind.DECISION,
+                subject="Human review",
+                statement="Human review.",
+            ),
+        ),
+    )
+
+    verdict = grade_faithfulness(explanation, evidence)
+
+    assert not verdict.faithful
+    assert [reason.code for reason in verdict.reasons] == [
+        FaithfulnessReasonCode.CLAIM_COVERAGE_MISMATCH
+    ]
+
+
 def test_grader_rejects_unknown_evidence_id() -> None:
     evidence = ExplanationEvidence.model_validate(
         {
@@ -120,6 +192,7 @@ def test_grader_rejects_unknown_evidence_id() -> None:
         }
     )
     explanation = GeneratedExplanation(
+        case_id="unknown-evidence",
         text="External score: 710.",
         claims=(
             ExplanationClaim(
@@ -134,4 +207,7 @@ def test_grader_rejects_unknown_evidence_id() -> None:
     verdict = grade_faithfulness(explanation, evidence)
 
     assert not verdict.faithful
-    assert verdict.reasons[0].code is FaithfulnessReasonCode.UNKNOWN_EVIDENCE_ID
+    assert {reason.code for reason in verdict.reasons} == {
+        FaithfulnessReasonCode.UNKNOWN_EVIDENCE_ID,
+        FaithfulnessReasonCode.CLAIM_COVERAGE_MISMATCH,
+    }

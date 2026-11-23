@@ -6,15 +6,17 @@ This module checks whether an explanation is bounded by the explicit evidence su
 
 The generator accepts `ExplanationEvidence`, a closed set of typed `EvidenceItem` records. It renders one claim per input item in input order and keeps a claim trace containing the cited evidence ID, kind, subject, and rendered statement. It does not rank factors, infer causality, add context, or generate values that are absent from those records.
 
-The programmatic grader evaluates the trace, not free-form provenance inference. For every claim it requires:
+The programmatic grader evaluates the delivered text and its structured trace, not free-form semantic provenance inference. The explanation is bound to an evidence `case_id`; a mismatch is an unfaithful verdict. It also requires the delivered `text` to match the joined claim statements and the ordered claim evidence IDs to exactly match the closed evidence set, preventing silent omission or duplication.
+
+For every claim it requires:
 
 1. a cited evidence ID that exists in the case;
 2. the claim kind to exactly match that item's kind;
 3. the claim subject to exactly match that item's label after case and whitespace normalization;
 4. the claim statement to match the deterministic rendering of that cited item, so an extra factor cannot be appended to otherwise supported text; and
-5. every numeric literal in the claim statement to appear in the cited evidence item's label, value, or detail, with percentage status retained.
+5. every numeric literal in the claim statement to appear in the cited evidence item's label, value, or detail, preserving sign, percentage, and currency semantics.
 
-The verdict is machine-readable: `faithful` is `false` whenever `reasons` is nonempty. Reason codes are `unknown_evidence_id`, `evidence_kind_mismatch`, `unsupported_subject`, `unsupported_statement`, and `unsupported_number`.
+The verdict is machine-readable: `faithful` is `false` whenever `reasons` is nonempty. Reason codes are `unknown_evidence_id`, `evidence_kind_mismatch`, `unsupported_subject`, `unsupported_statement`, `unsupported_number`, `text_trace_mismatch`, `case_id_mismatch`, and `claim_coverage_mismatch`.
 
 ## What this does not claim
 

@@ -30,6 +30,7 @@ def generate_explanation(evidence: ExplanationEvidence) -> GeneratedExplanation:
         for item in evidence.items
     )
     return GeneratedExplanation(
+        case_id=evidence.case_id,
         text=" ".join(claim.statement for claim in claims),
         claims=claims,
     )

@@ -50,7 +50,7 @@ class ExplanationClaim(BaseModel):
 
     model_config = ConfigDict(frozen=True, str_strip_whitespace=True)
 
-    evidence_id: str
+    evidence_id: Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]*$")]
     kind: EvidenceKind
     subject: Annotated[str, Field(min_length=1)]
     statement: Annotated[str, Field(min_length=1)]
@@ -61,6 +61,7 @@ class GeneratedExplanation(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
+    case_id: Annotated[str, Field(min_length=1)]
     text: Annotated[str, Field(min_length=1)]
     claims: Annotated[tuple[ExplanationClaim, ...], Field(min_length=1)]
 
@@ -71,6 +72,9 @@ class FaithfulnessReasonCode(StrEnum):
     UNSUPPORTED_SUBJECT = "unsupported_subject"
     UNSUPPORTED_STATEMENT = "unsupported_statement"
     UNSUPPORTED_NUMBER = "unsupported_number"
+    TEXT_TRACE_MISMATCH = "text_trace_mismatch"
+    CASE_ID_MISMATCH = "case_id_mismatch"
+    CLAIM_COVERAGE_MISMATCH = "claim_coverage_mismatch"
 
 
 class FaithfulnessReason(BaseModel):
@@ -79,8 +83,8 @@ class FaithfulnessReason(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     code: FaithfulnessReasonCode
-    claim_index: int
-    evidence_id: str
+    claim_index: int | None = None
+    evidence_id: str | None = None
     message: str
 
 
