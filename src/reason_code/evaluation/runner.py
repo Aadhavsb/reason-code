@@ -35,14 +35,23 @@ class EvaluationError(ValueError):
     """Raised when frozen evaluation inputs or expectations cannot be trusted."""
 
 
-def _load_json_object(path: Path, label: str) -> dict[str, Any]:
+def _load_json_object(payload: bytes, label: str) -> dict[str, Any]:
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raw = json.loads(payload)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
         raise EvaluationError(f"invalid {label}") from error
     if not isinstance(raw, dict):
         raise EvaluationError(f"invalid {label}")
     return raw
+
+
+def _read_fixture(path: Path, label: str) -> bytes:
+    try:
+        return path.read_bytes()
+    except OSError as error:
+        raise EvaluationError(
+            f"{label} unavailable; deterministic fixtures require a source checkout"
+        ) from error
 
 
 def _require_exact_keys(raw: dict[str, Any], expected: set[str], label: str) -> None:
@@ -126,18 +135,17 @@ def _validate_fixture(raw: dict[str, Any]) -> list[dict[str, Any]]:
     return cases
 
 
-def _validate_manifest(raw: dict[str, Any], fixture_path: Path) -> dict[str, int]:
+def _validate_manifest(raw: dict[str, Any], fixture_bytes: bytes) -> dict[str, int]:
     _require_exact_keys(
         raw,
-        {"manifest_version", "status", "fixture", "fixture_sha256", "expected_summary"},
+        {"manifest_version", "status", "fixture_sha256", "expected_summary"},
         "manifest",
     )
     if raw["manifest_version"] != MANIFEST_VERSION or raw["status"] != MANIFEST_STATUS:
         raise EvaluationError("invalid manifest metadata")
-    if raw["fixture"] != fixture_path.name or not isinstance(raw["fixture_sha256"], str):
+    if not isinstance(raw["fixture_sha256"], str):
         raise EvaluationError("invalid manifest schema")
-    fixture_content = fixture_path.read_text(encoding="utf-8").replace("\r\n", "\n")
-    fixture_hash = hashlib.sha256(fixture_content.encode("utf-8")).hexdigest()
+    fixture_hash = hashlib.sha256(fixture_bytes.replace(b"\r\n", b"\n")).hexdigest()
     if raw["fixture_sha256"] != fixture_hash:
         raise EvaluationError("fixture checksum mismatch")
     summary = raw["expected_summary"]
@@ -158,9 +166,10 @@ def run_deterministic_evaluation(
     manifest_path: Path = DEFAULT_MANIFEST_PATH,
 ) -> dict[str, Any]:
     """Evaluate the frozen synthetic scaffold and return a stable JSON-ready report."""
-    fixture_raw = _load_json_object(fixture_path, "fixture")
-    manifest_raw = _load_json_object(manifest_path, "manifest")
-    expected_summary = _validate_manifest(manifest_raw, fixture_path)
+    fixture_bytes = _read_fixture(fixture_path, "fixture")
+    fixture_raw = _load_json_object(fixture_bytes, "fixture")
+    manifest_raw = _load_json_object(_read_fixture(manifest_path, "manifest"), "manifest")
+    expected_summary = _validate_manifest(manifest_raw, fixture_bytes)
     cases = _validate_fixture(fixture_raw)
 
     results: list[dict[str, Any]] = []

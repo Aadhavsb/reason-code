@@ -1,7 +1,6 @@
 {
   "manifest_version": "deterministic-evaluation-manifest-v1",
   "status": "SYNTHETIC SCAFFOLD — not a real metric",
-  "fixture": "explanation_eval_synthetic_scaffold.json",
   "fixture_sha256": "3f79286aef88ff44ad0e586062b38b1489cfda313264ef106f93253e11fb465e",
   "expected_summary": {
     "case_count": 2,

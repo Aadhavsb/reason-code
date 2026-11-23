@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 
-from .runner import EvaluationError, run_deterministic_evaluation
+from .runner import run_deterministic_evaluation
 
 
 def _json_line(value: dict[str, object]) -> str:
-    return json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    return json.dumps(value, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
 
 
 def main() -> int:
@@ -19,7 +20,8 @@ def main() -> int:
     parser.parse_args()
     try:
         report = run_deterministic_evaluation()
-    except EvaluationError:
+    except Exception as error:
+        print(f"evaluation failed: {error}", file=sys.stderr)
         print(_json_line({"mode": "deterministic", "status": "fail"}))
         return 1
     print(_json_line(report))
