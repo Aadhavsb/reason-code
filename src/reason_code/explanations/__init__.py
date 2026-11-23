@@ -1,7 +1,7 @@
 """Evidence-bounded explanation generation and faithfulness grading."""
 
-from .generator import generate_explanation
-from .grader import grade_faithfulness
+from .generator import generate_explanation, render_evidence_item
+from .grader import grade_faithfulness, grade_prose_evidence
 from .models import (
     EvidenceItem,
     EvidenceKind,
@@ -24,4 +24,6 @@ __all__ = [
     "GeneratedExplanation",
     "generate_explanation",
     "grade_faithfulness",
+    "grade_prose_evidence",
+    "render_evidence_item",
 ]

@@ -1,0 +1,21 @@
+{
+  "fixture_version": "recorded-synthetic-judge-v1",
+  "status": "SYNTHETIC FIXTURE — not a gold set, model result, or lending guidance",
+  "metadata": {
+    "synthetic": true,
+    "non_authoritative": true,
+    "network_used": false,
+    "purpose": "Deterministic regression coverage for the optional recorded judge seam only."
+  },
+  "response": {
+    "case_id": "synthetic-faithful-001",
+    "evidence_digest": "ae83b703e0b099a13158eea2729495dbe03a93757267383f1464f142d812160e",
+    "rubric_version": "synthetic-faithfulness-rubric-v1",
+    "accepted": true,
+    "faithful": true,
+    "findings": [],
+    "source": "recorded",
+    "synthetic": true,
+    "non_authoritative": true
+  }
+}

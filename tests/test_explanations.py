@@ -1,16 +1,25 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
+import pytest
+from pydantic import ValidationError
+
 from reason_code.explanations import (
+    EvidenceItem,
     EvidenceKind,
     ExplanationClaim,
     ExplanationEvidence,
+    FaithfulnessReason,
     FaithfulnessReasonCode,
+    FaithfulnessVerdict,
     GeneratedExplanation,
     generate_explanation,
     grade_faithfulness,
+    grade_prose_evidence,
+    render_evidence_item,
 )
 
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "explanation_eval_synthetic_scaffold.json"
@@ -36,8 +45,7 @@ def test_generator_is_deterministic_and_evidence_bounded() -> None:
         "reason_dti",
     ]
     assert first.text == (
-        "Application requires human review. Debt-to-income ratio: 43%. "
-        "Debt-to-income reason code."
+        "Application requires human review. Debt-to-income ratio: 43%. Debt-to-income reason code."
     )
 
 
@@ -93,9 +101,7 @@ def test_grader_rejects_factor_appended_to_supported_statement() -> None:
                 evidence_id="debt_to_income",
                 kind=EvidenceKind.FACTOR,
                 subject="Debt-to-income ratio",
-                statement=(
-                    "Debt-to-income ratio: 43%. Employment history was also considered."
-                ),
+                statement=("Debt-to-income ratio: 43%. Employment history was also considered."),
             ),
         ),
     )
@@ -211,3 +217,64 @@ def test_grader_rejects_unknown_evidence_id() -> None:
         FaithfulnessReasonCode.UNKNOWN_EVIDENCE_ID,
         FaithfulnessReasonCode.CLAIM_COVERAGE_MISMATCH,
     }
+
+
+@pytest.mark.parametrize("case_id", ["", "   "])
+def test_explanation_models_reject_empty_case_ids(case_id: str) -> None:
+    with pytest.raises(ValidationError):
+        ExplanationEvidence(
+            case_id=case_id,
+            items=({"evidence_id": "decision", "kind": "decision", "label": "Human review"},),
+        )
+
+
+@pytest.mark.parametrize("value", [True, math.nan, math.inf, -math.inf, "   "])
+def test_evidence_rejects_boolean_nonfinite_and_empty_values(value: object) -> None:
+    with pytest.raises(ValidationError):
+        EvidenceItem(evidence_id="metric", kind="metric", label="Metric", value=value)
+
+
+def test_explanation_models_forbid_extra_fields_and_canonicalize_rendering() -> None:
+    with pytest.raises(ValidationError):
+        EvidenceItem(evidence_id="metric", kind="metric", label="Metric", extra="no")
+    assert (
+        render_evidence_item(
+            EvidenceItem(evidence_id="metric", kind="metric", label="Metric", value=1.0)
+        )
+        == "Metric: 1."
+    )
+    assert (
+        render_evidence_item(
+            EvidenceItem(evidence_id="metric", kind="metric", label="Metric", detail="Details")
+        )
+        == "Metric: Details."
+    )
+
+
+def test_faithfulness_verdict_requires_boolean_to_match_reasons() -> None:
+    reason = FaithfulnessReason(code="unsupported_statement", message="Unsupported.")
+    with pytest.raises(ValidationError):
+        FaithfulnessVerdict(faithful=True, reasons=(reason,))
+    with pytest.raises(ValidationError):
+        FaithfulnessVerdict(faithful=False, reasons=())
+
+
+def test_prose_evidence_grader_is_distinct_from_strict_structural_gate() -> None:
+    evidence = ExplanationEvidence(
+        case_id="prose",
+        items=({"evidence_id": "decision", "kind": "decision", "label": "Human review"},),
+    )
+    explanation = GeneratedExplanation(
+        case_id="prose",
+        text="Human review requires a person to review this application.",
+        claims=(
+            ExplanationClaim(
+                evidence_id="decision",
+                kind="decision",
+                subject="Human review",
+                statement="Human review requires a person to review this application.",
+            ),
+        ),
+    )
+    assert grade_prose_evidence(explanation, evidence).faithful is True
+    assert grade_faithfulness(explanation, evidence).faithful is False
