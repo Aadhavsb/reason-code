@@ -1,10 +1,13 @@
+import asyncio
 import json
 import math
 
 import pytest
+from fastapi import Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient
 
-from reason_code.api import app, get_decision_service
+from reason_code.api import app, get_decision_service, request_validation_exception_handler
 from reason_code.decision import DecisionService
 from reason_code.schemas import Attribution, AttributionDirection, ScoreResult
 
@@ -47,6 +50,26 @@ def test_post_decisions_uses_injected_service() -> None:
     assert response.json()["score_source"] == "injected_test_scorer"
 
 
+def test_validation_handler_preserves_framework_encoding_for_validator_errors() -> None:
+    request = Request({"type": "http", "method": "POST", "path": "/decisions", "headers": []})
+    error = RequestValidationError(
+        [
+            {
+                "type": "value_error",
+                "loc": ("body", "application"),
+                "msg": "Value error, invalid application",
+                "input": {},
+                "ctx": {"error": ValueError("invalid application")},
+            }
+        ]
+    )
+
+    response = asyncio.run(request_validation_exception_handler(request, error))
+
+    assert response.status_code == 422
+    assert b'"error":{}' in response.body
+
+
 def test_post_decisions_rejects_invalid_application() -> None:
     payload = valid_payload()
     payload["credit_score"] = 900
@@ -67,3 +90,4 @@ def test_post_decisions_rejects_non_finite_numbers_as_validation_errors(non_fini
     )
 
     assert response.status_code == 422
+    assert response.json()["detail"][0]["type"] == "finite_number"

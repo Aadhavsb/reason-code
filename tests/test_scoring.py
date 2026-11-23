@@ -52,5 +52,5 @@ def test_demo_heuristic_factor_directions_match_risk_semantics() -> None:
     assert directions == {
         "debt_to_income_ratio": AttributionDirection.INCREASES_RISK,
         "requested_amount_to_income": AttributionDirection.INCREASES_RISK,
-        "credit_score": AttributionDirection.DECREASES_RISK,
+        "credit_score_deficiency": AttributionDirection.INCREASES_RISK,
     }

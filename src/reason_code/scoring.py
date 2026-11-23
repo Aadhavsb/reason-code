@@ -26,8 +26,8 @@ class DemoHeuristicScorer:
         income_ratio = min(application.requested_amount / application.annual_income, 2.0) / 2.0
         dti_component = application.debt_to_income_ratio / 100 * 0.50
         amount_component = income_ratio * 0.30
-        credit_component = (850 - application.credit_score) / 550 * 0.20
-        risk_score = dti_component + amount_component + credit_component
+        credit_score_deficiency = (850 - application.credit_score) / 550 * 0.20
+        risk_score = dti_component + amount_component + credit_score_deficiency
 
         return ScoreResult(
             risk_score=risk_score,
@@ -46,12 +46,11 @@ class DemoHeuristicScorer:
                     detail="Demo heuristic contribution from requested amount relative to income.",
                 ),
                 Attribution(
-                    factor="credit_score",
-                    direction=AttributionDirection.DECREASES_RISK,
-                    contribution=credit_component,
+                    factor="credit_score_deficiency",
+                    direction=AttributionDirection.INCREASES_RISK,
+                    contribution=credit_score_deficiency,
                     detail=(
-                        "Higher credit scores decrease demo heuristic risk; this contribution "
-                        "measures distance from the upper bound."
+                        "Demo heuristic penalty from credit score distance below the upper bound."
                     ),
                 ),
             ],

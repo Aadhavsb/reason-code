@@ -4,6 +4,7 @@ import math
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
@@ -36,7 +37,9 @@ async def request_validation_exception_handler(
     request: Request, exc: RequestValidationError
 ) -> JSONResponse:
     """Return JSON-safe 422 details when a client supplies NaN or infinity."""
-    return JSONResponse(status_code=422, content={"detail": _json_safe(exc.errors())})
+    return JSONResponse(
+        status_code=422, content={"detail": _json_safe(jsonable_encoder(exc.errors()))}
+    )
 
 
 def get_decision_service() -> DecisionService:

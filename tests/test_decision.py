@@ -70,9 +70,18 @@ def test_service_preserves_scorer_attributions() -> None:
     assert "not lending advice" in response.demo_notice
 
 
-def test_decline_requires_a_supporting_attribution() -> None:
-    with pytest.raises(ValidationError, match="supporting attribution"):
+def test_decline_requires_adverse_nonzero_supporting_attribution() -> None:
+    with pytest.raises(ValidationError, match="adverse, non-zero"):
         DecisionService(FixedScorer(0.61)).decide(application())
+
+    non_supporting = Attribution(
+        factor="risk_reducer",
+        direction=AttributionDirection.DECREASES_RISK,
+        contribution=0,
+        detail="A zero-magnitude favorable factor is not adverse decline evidence.",
+    )
+    with pytest.raises(ValidationError, match="adverse, non-zero"):
+        DecisionService(FixedScorer(0.61, [non_supporting])).decide(application())
 
 
 def test_thresholds_are_immutable_and_not_shared_between_default_services() -> None:

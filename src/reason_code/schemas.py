@@ -72,8 +72,15 @@ class DecisionResponse(BaseModel):
 
     @model_validator(mode="after")
     def declines_require_supporting_attributions(self) -> "DecisionResponse":
-        if self.decision is Decision.DECLINE and not self.attributions:
-            raise ValueError("decline decisions require at least one supporting attribution")
+        has_adverse_evidence = any(
+            attribution.direction is AttributionDirection.INCREASES_RISK
+            and attribution.contribution > 0
+            for attribution in self.attributions
+        )
+        if self.decision is Decision.DECLINE and not has_adverse_evidence:
+            raise ValueError(
+                "decline decisions require at least one adverse, non-zero attribution"
+            )
         return self
 
 
