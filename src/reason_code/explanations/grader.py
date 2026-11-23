@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from decimal import Decimal, InvalidOperation
 
+from .generator import _render_item
 from .models import (
     EvidenceItem,
     ExplanationEvidence,
@@ -96,6 +97,20 @@ def grade_faithfulness(
                     message=(
                         f"Claim subject '{claim.subject}' is not the cited evidence "
                         f"label '{item.label}'."
+                    ),
+                )
+            )
+
+        expected_statement = _render_item(item)
+        if _normalise_text(claim.statement) != _normalise_text(expected_statement):
+            reasons.append(
+                FaithfulnessReason(
+                    code=FaithfulnessReasonCode.UNSUPPORTED_STATEMENT,
+                    claim_index=claim_index,
+                    evidence_id=claim.evidence_id,
+                    message=(
+                        "Claim statement does not match the deterministic rendering of "
+                        f"evidence_id '{claim.evidence_id}'."
                     ),
                 )
             )

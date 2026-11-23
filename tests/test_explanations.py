@@ -64,9 +64,46 @@ def test_grader_rejects_unsupported_factor_and_number() -> None:
     assert not verdict.faithful
     assert {reason.code for reason in verdict.reasons} == {
         FaithfulnessReasonCode.UNSUPPORTED_SUBJECT,
+        FaithfulnessReasonCode.UNSUPPORTED_STATEMENT,
         FaithfulnessReasonCode.UNSUPPORTED_NUMBER,
     }
     assert [reason.code.value for reason in verdict.reasons] == case["expected_reason_codes"]
+
+
+def test_grader_rejects_factor_appended_to_supported_statement() -> None:
+    evidence = ExplanationEvidence.model_validate(
+        {
+            "case_id": "statement-injection",
+            "items": [
+                {
+                    "evidence_id": "debt_to_income",
+                    "kind": "factor",
+                    "label": "Debt-to-income ratio",
+                    "value": "43%",
+                }
+            ],
+        }
+    )
+    explanation = GeneratedExplanation(
+        text="Debt-to-income ratio: 43%. Employment history was also considered.",
+        claims=(
+            ExplanationClaim(
+                evidence_id="debt_to_income",
+                kind=EvidenceKind.FACTOR,
+                subject="Debt-to-income ratio",
+                statement=(
+                    "Debt-to-income ratio: 43%. Employment history was also considered."
+                ),
+            ),
+        ),
+    )
+
+    verdict = grade_faithfulness(explanation, evidence)
+
+    assert not verdict.faithful
+    assert [reason.code for reason in verdict.reasons] == [
+        FaithfulnessReasonCode.UNSUPPORTED_STATEMENT
+    ]
 
 
 def test_grader_rejects_unknown_evidence_id() -> None:

@@ -69,6 +69,7 @@ class FaithfulnessReasonCode(StrEnum):
     UNKNOWN_EVIDENCE_ID = "unknown_evidence_id"
     EVIDENCE_KIND_MISMATCH = "evidence_kind_mismatch"
     UNSUPPORTED_SUBJECT = "unsupported_subject"
+    UNSUPPORTED_STATEMENT = "unsupported_statement"
     UNSUPPORTED_NUMBER = "unsupported_number"
 
 

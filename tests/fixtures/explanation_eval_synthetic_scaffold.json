@@ -47,7 +47,7 @@
         "subject": "Employment history",
         "statement": "Employment history: 42%."
       },
-      "expected_reason_codes": ["unsupported_subject", "unsupported_number"]
+      "expected_reason_codes": ["unsupported_subject", "unsupported_statement", "unsupported_number"]
     }
   ]
 }

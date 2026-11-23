@@ -10,10 +10,11 @@ The programmatic grader evaluates the trace, not free-form provenance inference.
 
 1. a cited evidence ID that exists in the case;
 2. the claim kind to exactly match that item's kind;
-3. the claim subject to exactly match that item's label after case and whitespace normalization; and
-4. every numeric literal in the claim statement to appear in the cited evidence item's label, value, or detail, with percentage status retained.
+3. the claim subject to exactly match that item's label after case and whitespace normalization;
+4. the claim statement to match the deterministic rendering of that cited item, so an extra factor cannot be appended to otherwise supported text; and
+5. every numeric literal in the claim statement to appear in the cited evidence item's label, value, or detail, with percentage status retained.
 
-The verdict is machine-readable: `faithful` is `false` whenever `reasons` is nonempty. Reason codes are `unknown_evidence_id`, `evidence_kind_mismatch`, `unsupported_subject`, and `unsupported_number`.
+The verdict is machine-readable: `faithful` is `false` whenever `reasons` is nonempty. Reason codes are `unknown_evidence_id`, `evidence_kind_mismatch`, `unsupported_subject`, `unsupported_statement`, and `unsupported_number`.
 
 ## What this does not claim
 
