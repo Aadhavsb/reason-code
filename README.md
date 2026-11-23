@@ -22,6 +22,10 @@ HMDA public data → reproducible feature pipeline → calibrated decision model
 
 This repository will publish only measurements that identify their dataset split, evaluation-set version, and assumptions. Until a measurement is reproducible, it is intentionally absent.
 
+## Cost policy
+
+The default development and CI path uses only local deterministic fixtures: no API key, model call, cloud service, automatic dataset download, or paid deployment. Any external data or LLM evaluation is an explicit, manual opt-in. See [`docs/no-cost-policy.md`](docs/no-cost-policy.md).
+
 ## Status
 
 Repository scaffold in progress. See [`docs/project-scope.md`](docs/project-scope.md) for the frozen MVP boundary.
