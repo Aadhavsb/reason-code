@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable, Mapping
 from typing import Any
+from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from reason_code.explanations import (
@@ -39,14 +40,24 @@ def _default_transport(url: str, body: bytes, headers: Mapping[str, str]) -> byt
 class ManualLlmClient:
     """Provider-policy-checked, one-shot JSON client with no fallback behavior."""
 
-    def __init__(self, settings: JudgeSettings, transport: Transport | None = None) -> None:
+    def __init__(
+        self,
+        settings: JudgeSettings,
+        transport: Transport | None = None,
+        environ: dict[str, str] | None = None,
+    ) -> None:
         if settings.mode is not JudgeMode.MANUAL:
             raise ValueError("manual LLM clients require manual judge mode")
         if settings.provider is JudgeProvider.RECORDED:
             raise ValueError("recorded provider cannot make manual LLM calls")
         if not settings.model:
             raise ValueError("manual LLM calls require an explicit JUDGE_MODEL")
+        endpoint = settings.resolved_endpoint
+        if endpoint is None:
+            raise ValueError("manual LLM calls require a configured endpoint")
         self._settings = settings
+        self._endpoint = endpoint
+        self._api_key = settings.api_key_from(environ)
         self._transport = transport or _default_transport
 
     def complete_json(self, prompt: str) -> dict[str, Any]:
@@ -56,15 +67,14 @@ class ManualLlmClient:
             payload = json.loads(raw)
             content = self._content_from(payload)
             decoded = json.loads(content)
-        except (KeyError, TypeError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        except (IndexError, KeyError, TypeError, UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise LlmOutputRejectedError("manual LLM returned malformed JSON") from exc
         if not isinstance(decoded, dict):
             raise LlmOutputRejectedError("manual LLM JSON response must be an object")
         return decoded
 
     def _request_parts(self, prompt: str) -> tuple[str, bytes, dict[str, str]]:
-        endpoint = self._settings.resolved_endpoint
-        assert endpoint is not None
+        endpoint = self._endpoint
         headers = {"content-type": "application/json"}
         if self._settings.provider is JudgeProvider.OLLAMA:
             payload = {
@@ -74,8 +84,10 @@ class ManualLlmClient:
                 "format": "json",
             }
             return endpoint, json.dumps(payload).encode(), headers
-        key = self._settings.api_key_from()
+        key = self._api_key
         if self._settings.provider is JudgeProvider.GROQ:
+            if key is None:
+                raise ValueError("Groq calls require an API key")
             headers["authorization"] = f"Bearer {key}"
             payload = {
                 "model": self._settings.model,
@@ -85,16 +97,20 @@ class ManualLlmClient:
             }
             return endpoint, json.dumps(payload).encode(), headers
         if self._settings.provider is JudgeProvider.GEMINI:
+            if key is None:
+                raise ValueError("Gemini calls require an API key")
+            headers["x-goog-api-key"] = key
             payload = {
                 "contents": [{"parts": [{"text": prompt}]}],
                 "generationConfig": {"responseMimeType": "application/json", "temperature": 0},
             }
+            model = quote(self._settings.model or "", safe="")
             return (
-                f"{endpoint}/models/{self._settings.model}:generateContent?key={key}",
+                f"{endpoint}/models/{model}:generateContent",
                 json.dumps(payload).encode(),
                 headers,
             )
-        raise AssertionError("validated configuration has an unsupported provider")
+        raise ValueError("manual LLM provider is not supported")
 
     def _content_from(self, payload: Mapping[str, Any]) -> str:
         if self._settings.provider is JudgeProvider.OLLAMA:

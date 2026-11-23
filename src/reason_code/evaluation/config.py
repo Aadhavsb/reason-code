@@ -35,12 +35,12 @@ class JudgeSettings(BaseModel):
     is the only mode in which a caller may choose one of the explicit providers.
     """
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=True)
 
     mode: JudgeMode = JudgeMode.DISABLED
     provider: JudgeProvider = JudgeProvider.RECORDED
     endpoint: str | None = None
-    model: str | None = Field(default=None, min_length=1)
+    model: str | None = Field(default=None, min_length=1, pattern=r"^[A-Za-z0-9._-]{1,128}$")
 
     @model_validator(mode="after")
     def validate_selection(self) -> JudgeSettings:
@@ -93,14 +93,15 @@ class JudgeSettings(BaseModel):
         key_name = self.required_key_environment_variable
         if key_name is None:
             return None
-        key = (environ or os.environ).get(key_name)
+        values = environ if environ is not None else os.environ
+        key = values.get(key_name)
         if not key:
             raise ValueError(f"manual {self.provider.value} judge requires {key_name}")
         return key
 
     @classmethod
     def from_environment(cls, environ: dict[str, str] | None = None) -> JudgeSettings:
-        values = environ or os.environ
+        values = environ if environ is not None else os.environ
         provider = values.get("JUDGE_PROVIDER", JudgeProvider.RECORDED.value).casefold()
         if provider in _FORBIDDEN_PROVIDER_NAMES:
             raise ValueError("OpenAI, Anthropic, and Azure judge providers are not permitted")

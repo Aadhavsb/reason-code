@@ -17,6 +17,10 @@ class RecordedResponseJudge:
 
     def __init__(self, responses: Iterable[JudgeResponse]) -> None:
         frozen_responses = tuple(responses)
+        if any(
+            response.source != "recorded" or not response.synthetic for response in frozen_responses
+        ):
+            raise ValueError("recorded judge responses must be synthetic recorded responses")
         self._responses = {response.case_id: response for response in frozen_responses}
         if len(self._responses) != len(frozen_responses):
             raise ValueError("recorded judge responses must have unique case_id values")
