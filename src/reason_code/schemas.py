@@ -1,12 +1,28 @@
 """Validated contracts for the decision-support demo.
 
-These schemas describe a demo workflow only. They are not a production underwriting
-contract and do not establish lending eligibility.
+These schemas describe a deterministic demo workflow only. They are not a production
+underwriting contract, do not establish lending eligibility, and do not claim HMDA
+or other regulatory compliance.
 """
 
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from reason_code.explanations import (
+    EvidenceKind,
+    ExplanationEvidence,
+    FaithfulnessVerdict,
+    GeneratedExplanation,
+)
+from reason_code.reason_mapping import DemoMappingEvidenceEnvelope, MappingStatus
+
+DEMO_SCORE_SOURCE = "demo_heuristic_not_calibrated"
+DEMO_EXPLANATION_NOTICE = (
+    "Deterministic demo explanation only. Demo reason codes are not HMDA reason codes "
+    "and do not establish production or regulatory compliance."
+)
 
 
 class Application(BaseModel):
@@ -81,6 +97,88 @@ class DecisionResponse(BaseModel):
             raise ValueError(
                 "decline decisions require at least one adverse, non-zero attribution"
             )
+        return self
+
+
+class DemoReasonCode(BaseModel):
+    """A deterministic demo mapping from one adverse attribution to a demo code.
+
+    This is deliberately not a HMDA, adverse-action, or production reason-code
+    contract.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
+
+    code: str = Field(pattern=r"^demo_[a-z0-9_]+$")
+    factor: str = Field(pattern=r"^[a-z][a-z0-9_]*$")
+    label: str = Field(min_length=1, max_length=128)
+
+
+class DecisionExplanationResponse(BaseModel):
+    """Fail-closed deterministic explanation output for the bundled demo scorer."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    decision: DecisionResponse
+    reason_codes: tuple[DemoReasonCode, ...]
+    evidence: ExplanationEvidence
+    mapping_envelope: DemoMappingEvidenceEnvelope
+    explanation: GeneratedExplanation
+    faithfulness: FaithfulnessVerdict
+    explanation_notice: Literal[
+        "Deterministic demo explanation only. Demo reason codes are not HMDA reason codes "
+        "and do not establish production or regulatory compliance."
+    ] = DEMO_EXPLANATION_NOTICE
+
+    @model_validator(mode="after")
+    def explanation_must_be_bound_to_faithful_demo_evidence(self) -> "DecisionExplanationResponse":
+        if self.decision.score_source != DEMO_SCORE_SOURCE:
+            raise ValueError("explanations are available only for the bundled demo heuristic")
+        if self.evidence.case_id != self.decision.application_id:
+            raise ValueError("evidence case_id must match decision application_id")
+        if self.mapping_envelope.case_id != self.decision.application_id:
+            raise ValueError("mapping envelope case_id must match decision application_id")
+        if self.explanation.case_id != self.decision.application_id:
+            raise ValueError("explanation case_id must match decision application_id")
+        if not self.faithfulness.faithful:
+            raise ValueError("faithfulness must pass before returning an explanation")
+
+        reason_codes_by_factor = {
+            reason_code.factor: reason_code for reason_code in self.reason_codes
+        }
+        if len(reason_codes_by_factor) != len(self.reason_codes):
+            raise ValueError("reason codes must not repeat an attribution factor")
+        if len({reason_code.code for reason_code in self.reason_codes}) != len(self.reason_codes):
+            raise ValueError("reason codes must not repeat a code")
+        if self.decision.decision is Decision.DECLINE and not self.reason_codes:
+            raise ValueError("decline explanations require at least one reason code")
+
+        adverse_factors = {
+            attribution.factor
+            for attribution in self.decision.attributions
+            if attribution.direction is AttributionDirection.INCREASES_RISK
+            and attribution.contribution > 0
+        }
+        if not set(reason_codes_by_factor).issubset(adverse_factors):
+            raise ValueError("each reason code must reference an adverse attribution")
+        evidenced_codes = [
+            item.value
+            for item in self.evidence.items
+            if item.kind is EvidenceKind.REASON_CODE and isinstance(item.value, str)
+        ]
+        expected_codes = [reason_code.code for reason_code in self.reason_codes]
+        if sorted(evidenced_codes) != sorted(expected_codes):
+            raise ValueError("every reason code must be evidenced exactly once")
+        if self.mapping_envelope.explanation_evidence != self.evidence:
+            raise ValueError("mapping envelope must bind the returned evidence")
+        if any(
+            mapping.status is not MappingStatus.MAPPED
+            for mapping in self.mapping_envelope.mappings
+        ):
+            raise ValueError("returned mapping envelope must contain only mapped factors")
+        mapping_codes = [mapping.demo_code for mapping in self.mapping_envelope.mappings]
+        if sorted(mapping_codes) != sorted(expected_codes):
+            raise ValueError("mapping envelope codes must match returned reason codes")
         return self
 
 

@@ -41,6 +41,71 @@ def test_manifest_hash_is_stable_across_json_key_order(manifest):
     assert manifest_hash(manifest) == manifest_hash(reordered)
 
 
+def test_validate_v1_1_manifest_with_independently_fingerprinted_sources():
+    manifest = {
+        "schema_version": "1.1",
+        "sources": [
+            {
+                "activity_year": 2022,
+                "source_url": "https://ffiec.cfpb.gov/v2/data-browser-api/view/csv",
+                "source_version_hash": "A" * 64,
+            },
+            {
+                "activity_year": 2023,
+                "source_url": "https://ffiec.cfpb.gov/v2/data-browser-api/view/csv",
+                "source_version_hash": "b" * 64,
+            },
+        ],
+        "filter": {"state_code": ["OH"]},
+        "download_date": "2026-11-23",
+        "fields": ["activity_year", "action_taken"],
+    }
+
+    validated = validate_manifest(manifest)
+
+    assert validated["schema_version"] == "1.1"
+    assert validated["sources"][0]["source_version_hash"] == "a" * 64
+
+
+@pytest.mark.parametrize(
+    "sources",
+    [
+        [],
+        [
+            {
+                "activity_year": 2022,
+                "source_url": "https://example.gov/a",
+                "source_version_hash": "a" * 64,
+            },
+            {
+                "activity_year": 2022,
+                "source_url": "https://example.gov/b",
+                "source_version_hash": "b" * 64,
+            },
+        ],
+        [
+            {
+                "activity_year": 2022,
+                "source_url": "https://example.gov/a",
+                "source_version_hash": "a" * 64,
+                "unexpected": True,
+            }
+        ],
+    ],
+)
+def test_v1_1_manifest_rejects_ambiguous_sources(sources):
+    manifest = {
+        "schema_version": "1.1",
+        "sources": sources,
+        "filter": {},
+        "download_date": "2026-11-23",
+        "fields": ["activity_year"],
+    }
+
+    with pytest.raises(ManifestValidationError):
+        validate_manifest(manifest)
+
+
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     [
@@ -144,6 +209,21 @@ def test_load_manifest_translates_read_failures(tmp_path: Path, filename):
 
     with pytest.raises(ManifestValidationError, match="cannot be read"):
         load_manifest(tmp_path / filename)
+
+
+@pytest.mark.parametrize(
+    "contents",
+    [
+        '{"schema_version":"1.0","schema_version":"1.0"}',
+        '{"filter":{"year":2025,"year":2026}}',
+    ],
+)
+def test_load_manifest_rejects_duplicate_json_keys_at_parse_time(tmp_path: Path, contents: str):
+    manifest_path = tmp_path / "duplicate.json"
+    manifest_path.write_text(contents, encoding="utf-8")
+
+    with pytest.raises(ManifestValidationError, match="duplicate JSON key"):
+        load_manifest(manifest_path)
 
 
 def test_load_manifest_translates_invalid_utf8(tmp_path: Path):

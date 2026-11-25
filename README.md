@@ -57,15 +57,17 @@ The repository intentionally distinguishes working engineering boundaries from d
 - Evidence-envelope explanation models, deterministic generator, claim trace, and structural/prose faithfulness graders.
 - Optional constrained manual LLM generator and advisory judge adapters, guarded by typed output validation and the deterministic graders.
 - Recorded synthetic judge fixture and a deterministic synthetic-fixture evaluation CLI.
-- Strict local provenance-manifest validation and deterministic chronological-split utilities.
+- Strict local provenance-manifest validation, a versioned local CSV loader, and deterministic chronological-split utilities.
+- An offline Ohio HMDA 2022–2024 research evaluation that fits a train-only logistic model, fits Platt calibration on validation only, and writes a checksummed JSON-only model artifact plus held-out test metrics. Local data and resulting artifacts are intentionally excluded from Git.
+- A deterministic proposed 75-case review-packet exporter: 50 held-out natural cases balanced across observed outcome and empirical score-rank strata, plus 9 valid controls and 16 visible fact/statement contradiction controls. It never reuses a source record, writes blinded packets with separate private linkage, and is not a completed human study.
 - GitHub Actions quality workflow: lint, tests, and deterministic evaluation—with no credentials, provider calls, dataset downloads, deployments, or service containers.
 
 ### Deliberately not claimed yet
 
-- No HMDA data slice has been acquired or published in this repository.
-- No model has been trained, fitted, or calibrated on HMDA data.
-- No real adverse-action reason-code taxonomy/mapping has been validated.
-- No frozen human-reviewed gold set, judge–human agreement, Cohen’s kappa, fairness result, or public model/faithfulness metric exists.
+- The local Ohio HMDA slice and its chronology-preserving evaluation are reproducible research artifacts, not a published dataset, credit-risk model, lending policy, or underwriting result.
+- The research model predicts an observational post-decision denial association from three features; it does not serve the API, make approval/decline decisions, or yield lending recommendations.
+- No real adverse-action reason-code taxonomy/mapping has been validated; the shipped mapping catalog is explicitly `demo_`-namespaced and demo-only.
+- A proposed review packet exists, but no frozen human-reviewed gold set, judge–human agreement, Cohen’s kappa, fairness result, or public model/faithfulness metric exists.
 - No claim of regulatory compliance, lending suitability, loss reduction, or production readiness is made.
 
 The current fixture baseline is explicitly marked **synthetic scaffold — not a real metric**. It proves regression wiring, not product performance.
@@ -178,6 +180,22 @@ A live LLM output is still rejected unless it passes:
 2. deterministic prose-to-evidence checks; and
 3. deterministic structural faithfulness checks.
 
+### One-request local experiment
+
+The manual experiment is a separate CLI: FastAPI, the UI, deterministic evaluation, and CI never invoke it. It uses only the manifest-verified synthetic fixture, structurally permits **one** provider request, ignores proxy environment variables, rejects redirects, applies a total deadline, and bounds a response to 64 KiB. Its one-case report is always non-authoritative and contains metadata plus an output checksum—never a key, exception text, or raw provider response.
+
+Run it only from a local shell after deliberately selecting a provider:
+
+```bash
+# Ollama requires no key and must already be running on loopback.
+python -m reason_code.evaluation.live_run \
+  --confirm-live-request \
+  --provider ollama \
+  --model your-local-model
+```
+
+For Groq or Gemini, set `GROQ_API_KEY` or `GEMINI_API_KEY` only in your own shell before running; never paste a key into Git, a `.env` file, documentation, test data, or chat. The command never accepts a key argument. A missing key, invalid endpoint, unapproved provider, or output/transport failure returns a non-zero, fail-closed result. There is no provider fallback or retry.
+
 The LLM judge is useful for advisory review, but it is not a substitute for the deterministic evidence guardrail and is not yet calibrated against human labels.
 
 ## Data governance utilities
@@ -191,6 +209,8 @@ python -m reason_code.provenance hash /path/to/manifest.json
 ```
 
 The manifest validator rejects unknown fields, malformed dates, unsafe/token-bearing URLs, non-canonical hashes, and non-JSON-safe filters. It never downloads, verifies, or endorses a remote source.
+
+The versioned local data loader requires an explicit dataset-manifest path, validates a linked local provenance manifest and CSV SHA-256, enforces the documented feature contract, and returns chronological partitions without training or changing the demo scorer. It never discovers or downloads data. See [`docs/data-feature-contract.md`](docs/data-feature-contract.md) for the manifest schema and validation rules.
 
 The chronological split helper encodes:
 
@@ -212,6 +232,7 @@ src/reason_code/
 ├── schemas.py             # Input, attribution, decision contracts and invariants
 ├── provenance.py          # Local provenance-manifest validation/hash CLI
 ├── splits.py              # Chronological split contract
+├── data.py                # Explicit local dataset validation and split wiring
 ├── explanations/          # Evidence envelope, generator, claim trace, graders
 └── evaluation/            # Deterministic runner + recorded/manual judge boundaries
 
@@ -231,16 +252,21 @@ docs/                      # Scope, no-cost policy, and dataset-card template
 
 ## Roadmap and evidence gates
 
-The next meaningful milestones are not cosmetic:
+Completed local research milestones:
 
-1. acquire a reproducible public HMDA slice with a concrete provenance manifest;
-2. build and evaluate a chronologically split, calibrated model;
-3. implement and validate a real reason-code mapping layer;
-4. create a frozen, human-reviewed evaluation set;
-5. measure explanation faithfulness and judge–human agreement with stated assumptions; and
-6. add only then a results table, portfolio case study, and resume bullet.
+1. reproducible public HMDA slice with a concrete provenance manifest;
+2. chronology-preserving train/validation/test evaluation with a checksummed JSON model artifact;
+3. a fail-closed, versioned **demo-only** reason-mapping contract; and
+4. a deterministic proposed 75-case blinded review packet and annotation/adjudication/freeze workflow.
 
-Until then, Reason Code is best described as a well-tested **auditable decision/explanation architecture and evaluation boundary**, not a validated credit model.
+Remaining evidence gates:
+
+1. two independent human reviews of the proposed packet;
+2. independent adjudication of every reviewer disagreement;
+3. a frozen review artifact and carefully scoped agreement/faithfulness reporting; and
+4. only then, a results table, portfolio case study, and resume bullet with measured claims.
+
+Until those gates close, Reason Code is best described as a well-tested **auditable decision/explanation research architecture with a reproducible local evaluation**, not a validated credit model or lending system.
 
 ## License and use
 

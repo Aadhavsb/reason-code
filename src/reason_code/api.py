@@ -10,7 +10,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 
 from reason_code.decision import DecisionService
-from reason_code.schemas import Application, DecisionResponse
+from reason_code.explanation_service import ExplanationUnavailableError, build_decision_explanation
+from reason_code.schemas import Application, DecisionExplanationResponse, DecisionResponse
 from reason_code.scoring import DemoHeuristicScorer
 
 app = FastAPI(
@@ -64,3 +65,26 @@ def create_decision(
 ) -> DecisionResponse:
     """Apply the deterministic demo policy to a validated application record."""
     return service.decide(application)
+
+
+@app.post(
+    "/decisions/explanation",
+    response_model=DecisionExplanationResponse,
+    responses={
+        422: {
+            "description": (
+                "The request is valid, but the deterministic explanation path refuses "
+                "its decision output."
+            )
+        }
+    },
+)
+def create_decision_explanation(
+    application: Application,
+    service: Annotated[DecisionService, Depends(get_decision_service)],
+) -> DecisionExplanationResponse:
+    """Return a verified, evidence-bounded explanation for the bundled demo only."""
+    try:
+        return build_decision_explanation(service.decide(application))
+    except ExplanationUnavailableError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc

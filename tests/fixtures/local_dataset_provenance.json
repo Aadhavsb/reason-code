@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "source_url": "https://example.gov/hmda/synthetic-local-fixture.csv",
+  "filter": {"fixture": true, "activity_year": [2023, 2024, 2025]},
+  "download_date": "2026-11-23",
+  "fields": [
+    "loan_id",
+    "activity_date",
+    "action_taken",
+    "income",
+    "loan_amount",
+    "debt_to_income_ratio"
+  ],
+  "source_version_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+}

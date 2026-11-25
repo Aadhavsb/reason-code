@@ -1,0 +1,4 @@
+loan_id,activity_date,action_taken,income,loan_amount,debt_to_income_ratio
+synthetic-train,2023-06-30,1,85000,180000,28
+synthetic-validation,2024-06-30,3,92000,210000,34
+synthetic-test,2025-06-30,1,110000,250000,22

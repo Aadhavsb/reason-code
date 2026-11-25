@@ -14,7 +14,7 @@ For every claim it requires:
 2. the claim kind to exactly match that item's kind;
 3. the claim subject to exactly match that item's label after case and whitespace normalization;
 4. the claim statement to match the deterministic rendering of that cited item, so an extra factor cannot be appended to otherwise supported text; and
-5. every numeric literal in the claim statement to appear in the cited evidence item's label, value, or detail, preserving sign, percentage, and currency semantics.
+5. every numeric literal in the claim statement to appear in the cited item's canonical rendered representation, preserving sign, percentage, and currency semantics. Finite float values use fixed-point Decimal rendering, so scientific notation and trailing zeroes cannot create a generator/grader mismatch.
 
 The verdict is machine-readable: `faithful` is `false` whenever `reasons` is nonempty. Reason codes are `unknown_evidence_id`, `evidence_kind_mismatch`, `unsupported_subject`, `unsupported_statement`, `unsupported_number`, `text_trace_mismatch`, `case_id_mismatch`, and `claim_coverage_mismatch`.
 

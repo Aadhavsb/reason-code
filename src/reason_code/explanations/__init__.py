@@ -1,6 +1,6 @@
 """Evidence-bounded explanation generation and faithfulness grading."""
 
-from .generator import generate_explanation, render_evidence_item
+from .generator import generate_explanation, render_evidence_item, render_value
 from .grader import grade_faithfulness, grade_prose_evidence
 from .models import (
     EvidenceItem,
@@ -26,4 +26,5 @@ __all__ = [
     "grade_faithfulness",
     "grade_prose_evidence",
     "render_evidence_item",
+    "render_value",
 ]

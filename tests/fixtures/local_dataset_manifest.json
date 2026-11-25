@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.0",
+  "dataset_path": "local_dataset.csv",
+  "dataset_sha256": "2548ac3fc6c04b0bf9e2af8a1820ca5355ede26603f8b826a61a8f2e67502353",
+  "provenance_manifest_path": "local_dataset_provenance.json",
+  "record_id_column": "loan_id",
+  "record_date_column": "activity_date",
+  "target_column": "action_taken",
+  "target_mapping": {"1": 1, "3": 0},
+  "feature_columns": {
+    "annual_income": "income",
+    "requested_amount": "loan_amount",
+    "debt_to_income_ratio": "debt_to_income_ratio"
+  },
+  "split": {
+    "train_end": "2023-12-31",
+    "validation_end": "2024-12-31"
+  }
+}

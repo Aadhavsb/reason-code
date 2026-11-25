@@ -4,13 +4,14 @@ Reason Code is an **auditable decision-support demo**, not lending advice and no
 
 ## Product contract
 
-The eventual `POST /decisions` route receives a validated, application-shaped record and returns:
+The current API separates the decision and explanation boundaries:
 
-1. a calibrated risk estimate and a decision or `human_review` abstention;
-2. model-supported factor attributions;
-3. mapped adverse-action reason codes;
-4. an explanation generated only from that allowed evidence; and
-5. programmatic and rubric-based faithfulness verdicts.
+1. `POST /decisions` receives a validated, application-shaped record and returns a deterministic demo risk score, decision or `human_review` abstention, and typed attributions.
+2. `POST /decisions/explanation` independently recomputes that bundled demo decision, then returns demo-only reason-code mappings, a closed evidence envelope, a deterministic explanation, and one deterministic faithfulness result.
+
+The explanation endpoint is not a calibrated-model or adverse-action notice contract. It refuses with `422 Unprocessable Content` when its closed demo mapping cannot safely represent the deterministic decision output (for example, an unmapped or duplicate adverse factor).
+
+A future real-data system would require a calibrated risk estimate, validated adverse-action reason-code mapping, and additional evaluation evidence before any production or regulatory claim.
 
 ## Non-negotiable evidence rules
 

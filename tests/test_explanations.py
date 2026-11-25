@@ -251,6 +251,26 @@ def test_explanation_models_forbid_extra_fields_and_canonicalize_rendering() -> 
     )
 
 
+def test_small_float_uses_one_canonical_rendering_for_generation_and_grading() -> None:
+    evidence = ExplanationEvidence(
+        case_id="small-float",
+        items=(
+            EvidenceItem(
+                evidence_id="contribution",
+                kind="factor",
+                label="Small contribution",
+                value=1e-07,
+            ),
+        ),
+    )
+
+    explanation = generate_explanation(evidence)
+
+    assert explanation.text == "Small contribution: 0.0000001."
+    assert grade_faithfulness(explanation, evidence).faithful is True
+    assert grade_prose_evidence(explanation, evidence).faithful is True
+
+
 def test_faithfulness_verdict_requires_boolean_to_match_reasons() -> None:
     reason = FaithfulnessReason(code="unsupported_statement", message="Unsupported.")
     with pytest.raises(ValidationError):

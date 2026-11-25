@@ -161,6 +161,20 @@ def _validate_manifest(raw: dict[str, Any], fixture_bytes: bytes) -> dict[str, i
     return summary
 
 
+def load_verified_fixture(
+    fixture_path: Path = DEFAULT_FIXTURE_PATH,
+    manifest_path: Path = DEFAULT_MANIFEST_PATH,
+) -> tuple[list[dict[str, Any]], str]:
+    """Load the fixture through the single canonical schema and checksum boundary."""
+    fixture_bytes = _read_fixture(fixture_path, "fixture")
+    fixture_raw = _load_json_object(fixture_bytes, "fixture")
+    manifest_raw = _load_json_object(_read_fixture(manifest_path, "manifest"), "manifest")
+    _validate_manifest(manifest_raw, fixture_bytes)
+    return _validate_fixture(fixture_raw), hashlib.sha256(
+        fixture_bytes.replace(b"\r\n", b"\n")
+    ).hexdigest()
+
+
 def run_deterministic_evaluation(
     fixture_path: Path = DEFAULT_FIXTURE_PATH,
     manifest_path: Path = DEFAULT_MANIFEST_PATH,

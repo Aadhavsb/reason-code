@@ -42,12 +42,8 @@ def _numbers_in(value: object) -> set[tuple[Decimal, bool, bool]]:
 
 
 def _allowed_numbers(item: EvidenceItem) -> set[tuple[Decimal, bool, bool]]:
-    values: list[object] = [item.label]
-    if item.value is not None:
-        values.append(item.value)
-    if item.detail is not None:
-        values.append(item.detail)
-    return set().union(*(_numbers_in(value) for value in values))
+    """Read numbers from the same canonical rendering used to create claims."""
+    return _numbers_in(render_evidence_item(item))
 
 
 def _base_reasons(

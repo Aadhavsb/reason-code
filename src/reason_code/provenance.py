@@ -16,11 +16,12 @@ import unicodedata
 from collections.abc import Mapping, Sequence
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 from urllib.parse import unquote, urlparse
 
-MANIFEST_SCHEMA_VERSION = "1.0"
-REQUIRED_FIELDS = frozenset(
+MANIFEST_SCHEMA_VERSION = "1.1"
+LEGACY_MANIFEST_SCHEMA_VERSION = "1.0"
+REQUIRED_FIELDS_V1 = frozenset(
     {
         "schema_version",
         "source_url",
@@ -30,12 +31,52 @@ REQUIRED_FIELDS = frozenset(
         "source_version_hash",
     }
 )
+REQUIRED_FIELDS_V1_1 = frozenset(
+    {
+        "schema_version",
+        "sources",
+        "filter",
+        "download_date",
+        "fields",
+    }
+)
+SOURCE_REQUIRED_FIELDS = frozenset({"activity_year", "source_url", "source_version_hash"})
 _ISO_DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}\Z")
 _MAX_URL_DECODE_PASSES = 4
 
 
 class ManifestValidationError(ValueError):
     """Raised when a provenance manifest is incomplete or malformed."""
+
+
+JsonValidationError = TypeVar("JsonValidationError", bound=ValueError)
+
+
+def parse_json_object(
+    contents: str, *, error_type: type[JsonValidationError], subject: str
+) -> Mapping[str, Any]:
+    """Parse one JSON object while rejecting duplicate keys at every nesting level.
+
+    Python's default decoder silently keeps the last duplicate key. Manifests are
+    review inputs, so that ambiguity must fail before schema validation. ``error_type``
+    preserves each caller's public validation-error contract.
+    """
+
+    def reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise error_type(f"{subject} contains duplicate JSON key: {key!r}")
+            result[key] = value
+        return result
+
+    try:
+        raw = json.loads(contents, object_pairs_hook=reject_duplicate_keys)
+    except json.JSONDecodeError as exc:
+        raise error_type(f"{subject} is not valid JSON: {exc.msg}") from exc
+    if not isinstance(raw, Mapping):
+        raise error_type(f"{subject} must be a JSON object")
+    return raw
 
 
 def _require_string(manifest: Mapping[str, Any], key: str) -> str:
@@ -135,52 +176,83 @@ def _validate_filters(filters: Mapping[str, Any]) -> dict[str, Any]:
         normalized = _normalize_filter_value(filters)
         json.dumps(normalized, allow_nan=False)
     except (RecursionError, TypeError, ValueError) as exc:
-        raise ManifestValidationError(
-            "filter must contain only JSON-serializable values"
-        ) from exc
+        raise ManifestValidationError("filter must contain only JSON-serializable values") from exc
+    return normalized
+
+
+def _validate_sources(value: Any) -> list[dict[str, Any]]:
+    """Validate an ordered, non-ambiguous list of official source artifacts."""
+    if isinstance(value, (str, bytes)) or not isinstance(value, Sequence) or not value:
+        raise ManifestValidationError("sources must be a non-empty list")
+    normalized: list[dict[str, Any]] = []
+    seen_years: set[int] = set()
+    for source in value:
+        if not isinstance(source, Mapping):
+            raise ManifestValidationError("each source must be a JSON object")
+        missing = SOURCE_REQUIRED_FIELDS.difference(source)
+        unknown = set(source).difference(SOURCE_REQUIRED_FIELDS)
+        if missing or unknown:
+            raise ManifestValidationError(
+                "each source must contain exactly activity_year, source_url, "
+                "and source_version_hash"
+            )
+        year = source["activity_year"]
+        if type(year) is not int or not 2017 <= year <= 2100 or year in seen_years:
+            raise ManifestValidationError(
+                "source activity_year values must be unique integers from 2017 through 2100"
+            )
+        source_url = _require_string(source, "source_url")
+        _validate_url(source_url)
+        normalized.append(
+            {
+                "activity_year": year,
+                "source_url": source_url,
+                "source_version_hash": _validate_hash(
+                    _require_string(source, "source_version_hash")
+                ),
+            }
+        )
+        seen_years.add(year)
     return normalized
 
 
 def validate_manifest(manifest: Mapping[str, Any]) -> dict[str, Any]:
     """Validate a local HMDA provenance manifest and return normalized metadata.
 
-    Unknown top-level fields are forbidden. Filters are recursively normalized to
-    JSON-compatible mappings and sequences; timezone-aware datetimes are rejected
-    rather than normalized, so equivalent instants cannot receive different hashes.
-    A passing result says only that supplied metadata is complete and well-formed,
-    not that its source was downloaded, verified, representative, or suitable for
-    lending use.
+    Schema ``1.0`` records one source and remains readable for existing local
+    manifests. Schema ``1.1`` records several independently fingerprinted official
+    source artifacts, which avoids inventing one hash for a multi-year slice.
     """
     if not isinstance(manifest, Mapping):
         raise ManifestValidationError("manifest must be a JSON object")
-
-    missing = REQUIRED_FIELDS.difference(manifest)
+    schema_version = manifest.get("schema_version")
+    if schema_version == LEGACY_MANIFEST_SCHEMA_VERSION:
+        required_fields = REQUIRED_FIELDS_V1
+    elif schema_version == MANIFEST_SCHEMA_VERSION:
+        required_fields = REQUIRED_FIELDS_V1_1
+    else:
+        raise ManifestValidationError(
+            "schema_version must be "
+            f"{LEGACY_MANIFEST_SCHEMA_VERSION!r} or {MANIFEST_SCHEMA_VERSION!r}, "
+            f"got {schema_version!r}"
+        )
+    missing = required_fields.difference(manifest)
     if missing:
         raise ManifestValidationError(
             f"manifest is missing required fields: {', '.join(sorted(missing))}"
         )
-    unknown = set(manifest).difference(REQUIRED_FIELDS)
+    unknown = set(manifest).difference(required_fields)
     if unknown:
         unknown_names = ", ".join(sorted(unknown))
         raise ManifestValidationError(
             f"manifest contains unsupported fields (unknown fields are forbidden): {unknown_names}"
         )
-    schema_version = manifest["schema_version"]
-    if schema_version != MANIFEST_SCHEMA_VERSION:
-        raise ManifestValidationError(
-            f"schema_version must be {MANIFEST_SCHEMA_VERSION!r}, got {schema_version!r}"
-        )
-
-    source_url = _require_string(manifest, "source_url")
-    _validate_url(source_url)
-    download_date = _validate_date(_require_string(manifest, "download_date"))
 
     filters = manifest["filter"]
     if not isinstance(filters, Mapping):
         raise ManifestValidationError(
             "filter must be a JSON object; use {} when no filters are applied"
         )
-
     fields = manifest["fields"]
     if isinstance(fields, (str, bytes)) or not isinstance(fields, Sequence) or not fields:
         raise ManifestValidationError("fields must be a non-empty list of field names")
@@ -192,14 +264,22 @@ def validate_manifest(manifest: Mapping[str, Any]) -> dict[str, Any]:
     if len(set(normalized_fields)) != len(normalized_fields):
         raise ManifestValidationError("fields must not contain duplicates")
 
-    return {
-        "schema_version": MANIFEST_SCHEMA_VERSION,
-        "source_url": source_url,
+    normalized = {
+        "schema_version": schema_version,
         "filter": _validate_filters(filters),
-        "download_date": download_date,
+        "download_date": _validate_date(_require_string(manifest, "download_date")),
         "fields": normalized_fields,
-        "source_version_hash": _validate_hash(_require_string(manifest, "source_version_hash")),
     }
+    if schema_version == LEGACY_MANIFEST_SCHEMA_VERSION:
+        source_url = _require_string(manifest, "source_url")
+        _validate_url(source_url)
+        normalized["source_url"] = source_url
+        normalized["source_version_hash"] = _validate_hash(
+            _require_string(manifest, "source_version_hash")
+        )
+    else:
+        normalized["sources"] = _validate_sources(manifest["sources"])
+    return normalized
 
 
 def manifest_hash(manifest: Mapping[str, Any]) -> str:
@@ -217,10 +297,7 @@ def load_manifest(path: str | Path) -> dict[str, Any]:
         contents = Path(path).read_text(encoding="utf-8")
     except (OSError, UnicodeError, TypeError, ValueError) as exc:
         raise ManifestValidationError(f"manifest file cannot be read: {path}") from exc
-    try:
-        raw = json.loads(contents)
-    except json.JSONDecodeError as exc:
-        raise ManifestValidationError(f"manifest is not valid JSON: {exc.msg}") from exc
+    raw = parse_json_object(contents, error_type=ManifestValidationError, subject="manifest")
     return validate_manifest(raw)
 
 

@@ -118,7 +118,7 @@ def test_evidence_digest_is_stable_and_content_bound() -> None:
 def test_manual_generator_accepts_only_deterministically_faithful_mocked_output() -> None:
     sent: list[tuple[str, bytes, object]] = []
 
-    def transport(url: str, body: bytes, headers: object) -> bytes:
+    def transport(url: str, body: bytes, headers: object, timeout_seconds: float) -> bytes:
         sent.append((url, body, headers))
         return json.dumps(
             {
@@ -166,7 +166,7 @@ def test_manual_generator_accepts_only_deterministically_faithful_mocked_output(
 
 
 def test_manual_generator_rejects_unfaithful_mocked_output() -> None:
-    def transport(url: str, body: bytes, headers: object) -> bytes:
+    def transport(url: str, body: bytes, headers: object, timeout_seconds: float) -> bytes:
         unfaithful = {
             "case_id": "synthetic-faithful-001",
             "text": "Credit score: 710.",
@@ -189,7 +189,7 @@ def test_manual_generator_rejects_unfaithful_mocked_output() -> None:
 
 
 def test_manual_judge_uses_mocked_response_and_preserves_request_bindings() -> None:
-    def transport(url: str, body: bytes, headers: object) -> bytes:
+    def transport(url: str, body: bytes, headers: object, timeout_seconds: float) -> bytes:
         return b'{"response":"{\\"accepted\\":true,\\"faithful\\":true,\\"findings\\":[]}"}'
 
     client = ManualLlmClient(
@@ -269,6 +269,13 @@ def test_manual_remote_providers_require_explicit_selection_and_key(
 def test_forbidden_providers_are_rejected_without_fallback(provider: str) -> None:
     with pytest.raises(ValueError, match="not permitted"):
         JudgeSettings.from_environment({"JUDGE_PROVIDER": provider})
+
+
+def test_environment_configuration_hides_invalid_raw_values() -> None:
+    with pytest.raises(ValueError, match="judge environment configuration is invalid") as exc_info:
+        JudgeSettings.from_environment({"JUDGE_OUTPUT_TOKEN_CAP": "not-a-number"})
+
+    assert "not-a-number" not in str(exc_info.value)
 
 
 def test_recorded_mode_refuses_provider_or_endpoint_fallbacks() -> None:
